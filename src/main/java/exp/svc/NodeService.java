@@ -1,0 +1,409 @@
+package exp.svc;
+
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import exp.entity.Node;
+import exp.entity.Value;
+import exp.entity.node.JqNode;
+import exp.entity.node.JsNode;
+import io.hyperfoil.tools.yaup.StringUtil;
+import io.hyperfoil.tools.yaup.json.Json;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.persistence.EntityManager;
+import jakarta.transaction.Transactional;
+
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.*;
+import java.util.stream.Collectors;
+
+@ApplicationScoped
+public class NodeService {
+
+    @Inject
+    EntityManager em;
+
+    @Inject
+    ValueService valueService;
+
+    @Transactional
+    public long create(Node node){
+
+        if(!node.isPersistent()){
+            node.id = null;
+            Node merged = em.merge(node);
+            em.flush();
+            node.id = merged.id;
+            return merged.id;
+        }
+        return node.id;
+    }
+
+    @Transactional
+    public Node read(long id){
+        return Node.findById(id);
+    }
+
+    @Transactional
+    public long update(Node node){
+        if(node.id == null || node.id == -1){
+
+        }else{
+            em.persist(node);
+        }
+        return node.id;
+    }
+
+    @Transactional
+    public void delete(Node node){
+        if(node.id!=null) {
+            Node.deleteById(node.id);
+        }
+    }
+
+
+    public void calculate(JqNode node){}
+    public void calculate(JsNode node){}
+    public void calculate(Node node){
+
+        switch (node.type){
+            case "js":
+
+
+                break;
+
+        }
+    }
+
+    /**
+     * This creates the source value combinations for nodes with source nodes that create multiple values (e.g. datasets).
+     * If there are multiple source nodes with multiple values then combinations are either by index (Length) or a full matrix of combinations (NxN)
+     * depending on the current node's multiType.
+     * @param node
+     * @param root
+     * @return
+     */
+    public List<Map<String,Value>> calculateSourceValuePermutations(Node node, Value root) {
+        List<Map<String,Value>> rtrn = new ArrayList<>();
+
+        Map<String,List<Value>> nodeValues = node.sources.stream()
+                .map(n -> {
+                    List<Value> found = valueService.getDescendantValues(root,n);
+                    if(found.isEmpty() && n.sources.isEmpty()){
+                        found = List.of(root);
+                    }
+                    return found;
+                })
+                //use root if there isn't anything found? How do we better decide when to use root? when there aren't sources?
+                .collect(Collectors.toMap((List<Value>list)-> !list.isEmpty() ? list.getFirst().node.name : "", list->list));
+
+        int maxNodeValuesLength = nodeValues.values().stream().map(Collection::size).max(Integer::compareTo).orElse(0);
+
+        //the two cases where we do not need to worry about MultiIterationType
+        if(maxNodeValuesLength == 1 || node.sources.size() == 1){//if we don't need to worry about NxN or byLength
+            //to ensure sequence
+            for(int i=0; i< maxNodeValuesLength; i++) {
+                int idx = i;
+                Map<String,Value> sourceValuesAtIndex = node.sources.stream().collect(Collectors.toMap(n->n.name,n->nodeValues.get(n.name).get(idx)));
+                //TODO splitting?
+                rtrn.add(sourceValuesAtIndex);
+            }
+        } else { //NxN or byLength time
+            switch (node.multiType){
+                case Length -> {
+                    //I think this is functionally equivalent
+                    for(int i=0; i< maxNodeValuesLength; i++){
+                        Map<String,Value> sourceValuesAtIndex = new HashMap<>();
+                        int idx = i;//thanks java
+                        for(Node n : node.sources){
+                            List<Value> nValues = nodeValues.get(n.name);
+                            if(nValues.size()==1){
+                                if(idx == 0){
+                                    sourceValuesAtIndex.put(n.name,nValues.get(idx));
+                                }else if (n.scalarMethod.equals(Node.ScalarVariableMethod.All)){
+                                    sourceValuesAtIndex.put(n.name,nValues.getFirst());
+                                }
+                            }else if(nValues.size()>idx){
+                                sourceValuesAtIndex.put(n.name,nValues.get(idx));
+                            }else{
+                                return null;
+                            }
+                        }
+                        rtrn.add(sourceValuesAtIndex);
+                    }
+                }
+                case NxN -> {
+                    List<Map<String,Value>> valuePermutations = new ArrayList<>();
+                    List<String> multiNodes = nodeValues.entrySet().stream().filter(e->e.getValue().size()>1).map(Map.Entry::getKey).toList();
+                    List<String> scalarNodes = nodeValues.entrySet().stream().filter(e->e.getValue().size()==1).map(Map.Entry::getKey).toList();
+                    int permutations = nodeValues.values().stream().map(List::size).reduce(1,(a,b)-> b > 0 ? a*b : a );
+                    for( int i=0; i<permutations; i++ ) {
+                        valuePermutations.add(new HashMap<>());
+                    }
+                    int loopCount = 1;
+                    for( Node sourceNode : node.sources ){
+                        List<Value> valueList = nodeValues.get(sourceNode.name);
+                        if( !valueList.isEmpty() ){
+                            if ( valueList.size() == 1 ) {
+                                if ( sourceNode.scalarMethod.equals(Node.ScalarVariableMethod.First) ){
+                                    valuePermutations.getFirst().put(sourceNode.name, valueList.getFirst());
+                                }else{
+                                    valuePermutations.forEach(m->m.put(sourceNode.name, valueList.getFirst()));
+                                }
+                            } else {//just the multivalue entries
+                                int valueCount = valueList.size();
+                                int perLoop = permutations / loopCount;
+                                int perValue = perLoop / valueCount;
+
+                                for(int loopIndex=0; loopIndex<loopCount; loopIndex++) {
+                                    for (int valueIndex = 0; valueIndex < valueList.size(); valueIndex++) {
+                                        for (int i = 0; i < perValue; i++) {
+                                            int permutationIndex = loopIndex * perLoop + valueIndex * perValue + i;
+                                            valuePermutations.get(permutationIndex).put(sourceNode.name, valueList.get(valueIndex));
+                                        }
+                                    }
+                                }
+                                loopCount*=valueCount;
+                            }
+                        }
+                    }
+                    rtrn.addAll(valuePermutations);
+                }
+            }
+        }
+        return rtrn;
+    }
+
+
+    /**
+     *
+     * @param node
+     * @param root
+     * @return
+     * @throws IOException
+     */
+    @Transactional
+    public List<Value> calculateValues(Node node, List<Value> roots) throws IOException {
+        List<Value> rtrn = new ArrayList<>();
+        switch (node.type){
+            //nodes that operate one root at a time
+            case "js":
+            case "jq":
+                for(int vIdx=0; vIdx<roots.size(); vIdx++){
+                    Value root =  roots.get(vIdx);
+                    try {
+                        List<Map<String,Value>> combinations = calculateSourceValuePermutations(node,root);
+                        for(int i=0;i<combinations.size();i++){
+                            Map<String,Value> combination =  combinations.get(i);
+                            List<Value> createdValues = calculateNodeValues(node,combination,rtrn.size());
+                            rtrn.addAll(createdValues);
+                        }
+                    } catch (IOException e) {
+                    }
+                }
+                break;
+            default:
+                System.err.println("Unknown node type: " + node.type);
+        }
+        return rtrn;
+    }
+
+    public List<Value> calculateNodeValues(Node node,Map<String,Value> sourceValues,int startingOrdinal) throws IOException {
+        return switch(node.type){
+            case "jq" -> calculateJqValues((JqNode)node,sourceValues,startingOrdinal+1);
+            case "js" -> calculateJsValues((JsNode)node,sourceValues,startingOrdinal+1);
+            default -> {
+                System.err.println("Unknown node type: "+node.type);
+                yield Collections.emptyList();
+            }
+        };
+    }
+    public List<Value> calculateJsValues(JsNode node,Map<String,Value> sourceValues,int startingOrdinal) throws IOException {
+        List<String> params = JsNode.getParameterNames(node.operation);
+        if(params == null){
+            System.err.println("Error occurred reading parameers from js function\n"+node.operation);
+            return Collections.emptyList();
+        }
+        List<JsonNode> input = params.stream().map(name->sourceValues.get(name).data).collect(Collectors.toList());
+        Object result = StringUtil.jsEval(node.operation, (Object[]) input.toArray(new JsonNode[0]));
+        JsonNode data = null;
+        if(result==null){
+            //data stays null
+        }else if (result instanceof Json){
+            Json asJson = (Json)result;
+            //TODO do we support splitting an array into multiple Values?
+            data = Json.toJsonNode(asJson);
+        }else{//scalar
+            ObjectMapper mapper = new ObjectMapper();
+            try {
+                data = mapper.readTree(result.toString());
+            } catch (JsonProcessingException e) {
+                System.err.println("failed to convert "+result+" to a javascript object");
+            }
+        }
+
+        File valuePath = JqNode.outputPath().resolve(node.name + "." + (startingOrdinal+1)+".jq").toFile();
+        //TODO create base directory if needed
+        if(data!=null) {
+            Files.writeString(valuePath.toPath(), data.toString());
+        }
+
+        Value newValue = new Value();
+        newValue.idx = startingOrdinal+1;
+        newValue.node = node;
+        newValue.path = valuePath.toString();
+        newValue.data = data;
+        newValue.sources = node.sources.stream().map(n -> sourceValues.get(n.name)).collect(Collectors.toList());
+        return List.of(newValue);
+    }
+    public List<Value> calculateJqValues(JqNode node,Map<String,Value> sourceValues,int startingOrdinal) throws IOException {
+        List<Value> rtrn = new ArrayList<>();
+        List<String> args = new ArrayList<>();
+        File tmpFilter = Files.createTempFile(".bjq." + node.name,".txt").toFile();
+        tmpFilter.deleteOnExit();
+        Files.write(tmpFilter.toPath(),node.operation.getBytes());
+
+        args.addAll(List.of(
+                "/usr/bin/jq",
+                "--from-file",
+                tmpFilter.toPath().toAbsolutePath().toString()
+        ));
+        if(node.sources.size()>1 || sourceValues.size() >1){//if this is a multi file input
+            args.add("--slurp");
+        }else if ( JqNode.isNullInput(node.operation)){
+            args.add("--null-input");
+        }
+        args.add("--compact-output");
+        args.add("--");//terminate argument processing
+        //iterate sources to preserve order
+        node.sources.forEach(sourceNode -> {
+            if(sourceValues.containsKey(sourceNode.name)){
+                args.add(sourceValues.get(sourceNode.name).path);
+            }
+        });
+        //if there are no sources we just add all the inputs together
+        if(node.sources.isEmpty()){
+            sourceValues.values().forEach(v->args.add(v.path));
+        }
+        Path destinationPath = Files.createTempFile(".bjq." + node.name+".",".out");//getOutPath().resolve(name + "." + startingOrdinal);
+        destinationPath.toFile().deleteOnExit();
+        if(!JqNode.outputPath().toFile().exists()){
+            JqNode.outputPath().toFile().mkdirs();
+        }
+        ProcessBuilder processBuilder = new ProcessBuilder(args);
+        processBuilder.environment().put("TERM", "xterm");
+        //processBuilder.directory(getJqPath().resolve(name).toFile()); //not yet creating the working directory
+        processBuilder.redirectOutput(destinationPath.toFile());
+        //processBuilder.redirectErrorStream(true);
+        Process p = processBuilder.start();
+        String line = null;
+        try (BufferedReader reader = p.errorReader()) {
+            while ((line = reader.readLine()) != null) {
+                //TODO handle error output from process
+                System.err.println("E: " + line);
+            }
+        }
+        try (BufferedReader reader = p.inputReader()) {
+            while ((line = reader.readLine()) != null) {
+                System.err.println(line);
+                //TODO handle output that somehow wasn't redirected
+            }
+        }
+
+        //TODO use onExit instead of blocking the thread?
+        try {
+            p.waitFor();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+        int ec = p.exitValue();
+        if (ec != 0) {
+            //TODO handle failed jq
+        } else {
+            int order = 0;
+            //create a token from each root
+            File f = destinationPath.toFile();
+            try (FileInputStream fis = new FileInputStream(f)) {
+                JsonFactory jf = new JsonFactory();
+                JsonParser jp = jf.createParser(fis);
+                jp.setCodec(new ObjectMapper());
+                jp.nextToken();
+                while (jp.hasCurrentToken()) {
+                    JsonNode jsNode = jp.readValueAsTree();
+                    File valuePath = JqNode.outputPath().resolve(node.name + "." + (startingOrdinal+rtrn.size())+".jq").toFile();
+                    //TODO create base directory if needed
+                    Files.writeString(valuePath.toPath(), jsNode.toString());
+                    Value newValue = new Value();
+                    newValue.idx = order++;
+                    newValue.node = node;
+                    newValue.path = valuePath.toString();
+                    newValue.data = jsNode;
+                    newValue.sources = node.sources.stream().map(n -> sourceValues.get(n.name)).collect(Collectors.toList());
+                    rtrn.add(newValue);
+                    jp.nextToken();
+                }
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        return rtrn;
+    }
+
+    /**
+     * find a Node based on the groupName:nodeName
+     * @param name
+     * @param groupId
+     * @return
+     */
+    @Transactional
+    public List<Node> findNodeByFqdn(String name,Long groupId){
+        List<Node> rtrn = new ArrayList<>();
+        if(name==null || name.isBlank()){
+            return List.of();
+        }
+        String split[] = name.split(Node.FQDN_SEPARATOR);
+        if(split.length==1){
+            rtrn.addAll(Node.find("from Node n where n.group.id=?1 and n.name=?2",groupId,split[0]).list());
+        }else if (split.length==2){
+            rtrn.addAll(Node.find("from Node n where n.group.id=?1 and n.originalGroup.name = ?2 n.name=?3",groupId,split[0],split[1]).list());
+        }
+        return rtrn;
+    }
+
+    @Transactional
+    public List<Node> findNodeByFqdn(String fqdn){
+        List<Node> rtrn = new ArrayList<>();
+        if(fqdn==null || fqdn.isBlank()){
+            return List.of();
+        }
+        if(fqdn.contains(Node.FQDN_SEPARATOR)){
+            String split[] = fqdn.split(Node.FQDN_SEPARATOR);
+            if(split.length==1){
+                //not supported
+
+            }else if(split.length==2){
+                String groupName = split[0];
+                String nodeName = split[1];
+
+                rtrn.addAll(Node.find("from Node n where n.group.name=?1 and n.name=?2",groupName,nodeName).list());
+            }else if (split.length==3){
+                String groupName = split[0];
+                String originalGroupName = split[1];
+                String nodeName = split[2];
+                rtrn.addAll(Node.find("from Node n where n.group.name=?1 and n.originalGroup.name = ?2 and n.name=?3",groupName,originalGroupName,nodeName).list());
+            }else{
+                //This shouldn't happen
+            }
+        }
+        return rtrn;
+    }
+}

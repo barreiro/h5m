@@ -1,0 +1,242 @@
+package exp.entity;
+
+import com.fasterxml.jackson.annotation.*;
+import exp.queue.KahnDagSort;
+import io.quarkus.hibernate.orm.panache.PanacheEntity;
+import jakarta.persistence.*;
+
+import java.io.IOException;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+
+@Entity
+@Table(
+        name = "node"
+
+)
+@Inheritance(strategy = InheritanceType.SINGLE_TABLE)
+@DiscriminatorColumn(name = "type", discriminatorType =  DiscriminatorType.STRING)
+public abstract class Node extends PanacheEntity implements Comparable<Node> {
+
+    public static String FQDN_SEPARATOR = ":";
+    public static String NAME_SEPARATOR = "=";
+
+    public static enum MultiIterationType { Length, NxN}
+    public static enum ScalarVariableMethod { First, All}
+
+    @Column(insertable=false, updatable=false)
+    @JsonIgnore
+    public String type; //maybe we want access to the type?
+    public String name;
+    public String operation;
+    public MultiIterationType multiType = MultiIterationType.Length;
+    public ScalarVariableMethod scalarMethod = ScalarVariableMethod.First;
+
+    @ManyToOne(cascade = { CascadeType.PERSIST, CascadeType.MERGE }, fetch = FetchType.LAZY )
+    @JoinColumn(name = "group_id")
+    @JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "group_id")
+//    @JsonIdentityReference(alwaysAsId = true)
+    @JsonBackReference
+    public NodeGroup group;
+
+    //making this eager causes too many joins
+    @ManyToMany(cascade = { CascadeType.ALL }, fetch = FetchType.LAZY )
+    @JoinTable(
+            name="node_edge",
+            joinColumns = @JoinColumn(name = "node_id"), // Custom join column referencing the Student entity
+            inverseJoinColumns = @JoinColumn(name = "source_id")
+    )
+    @OrderColumn(name = "idx")
+    public List<Node> sources;
+
+    public List<Node> getSources() {return sources;}
+
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "previous_version_id")
+    Node previousVersion;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "original_node_id")
+    Node originalNode;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "original_group_id")
+    NodeGroup originalGroup;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "target_group_id")
+    NodeGroup targetGroup;
+
+    public NodeGroup getOriginalGroup() {
+        return originalGroup;
+    }
+
+    public void setOriginalGroup(NodeGroup originalGroup) {
+        this.originalGroup = originalGroup;
+    }
+
+    public Node getOriginalNode() {
+        return originalNode;
+    }
+
+    public void setOriginalNode(Node originalNode) {
+        this.originalNode = originalNode;
+    }
+
+    public Node getPreviousVersion() {
+        return previousVersion;
+    }
+
+    public void setPreviousVersion(Node previousVersion) {
+        this.previousVersion = previousVersion;
+    }
+
+    @PreUpdate
+    @PrePersist
+    public void sortSources(){
+        this.sources = KahnDagSort.sort(sources,Node::getSources);
+    }
+
+
+    public Node(){
+        this.sources = new ArrayList<>();
+    }
+    public Node(String name){
+        this.sources = new ArrayList<>();
+        this.name = name;
+    }
+    public Node(String name,String operation){
+        this.sources = new ArrayList<>();
+        this.name = name;
+        this.operation = operation;
+    }
+    public Node(String name,String operation,List<Node> sources){
+        this.sources = new ArrayList<>(sources);
+        this.name = name;
+        this.operation = operation;
+    }
+
+    public String getFqdn(){
+        return (group!=null?group.name+FQDN_SEPARATOR:"")+(originalGroup!=null?originalGroup.name+FQDN_SEPARATOR:"")+name;
+    }
+    public String getOperationEncoding(){
+        return operation;
+    }
+
+    protected abstract Node shallowCopy();
+
+    public boolean hasNonRootSource(){
+        return sources.stream().anyMatch(s->!s.type.equals("root"));
+    }
+
+    public Node copy(){
+        Node rtrn = shallowCopy();
+        rtrn.sources = sources.stream().map(Node::shallowCopy).toList();
+        return rtrn;
+    }
+
+    @Override
+    public String toString(){
+        return getClass().getSimpleName()+"< "+name+", "+operation+", "+id+", ["+sources.stream().map(s->""+s.id).collect(Collectors.joining(" "))+"]>";
+    }
+
+    public boolean dependsOn(Node source){
+        if(source == null) return false;
+        Queue<Node> queue = new ArrayDeque<>(sources);
+        boolean result = false;
+        while(!queue.isEmpty() && !result){
+            Node node = queue.poll();
+            result = node.equals(source);
+            if(!result){
+                queue.addAll(node.sources);
+            }
+        }
+        return result;
+    }
+
+    @Override
+    public int compareTo(Node n1){
+        int rtrn = 0;
+        if(!n1.sources.isEmpty() && this.sources.isEmpty()){
+            rtrn = -1;//o1 comes before this one
+        }else if (!this.sources.isEmpty() && n1.sources.isEmpty()){
+            rtrn = 1;
+        }else if (n1.dependsOn(this)){//other object depends on this one
+            rtrn = -1;
+        }else if (this.dependsOn(n1)){
+            rtrn = 1;
+        }else if (this.sources.size() > n1.sources.size()){
+            rtrn = 1;
+        }else if (n1.sources.size() > this.sources.size()){
+            rtrn = -1;
+        }else {
+            //unable to compare at this time, return stable number
+        }
+        return rtrn;
+    }
+
+
+    //based on https://github.com/williamfiset/Algorithms/blob/master/src/main/java/com/williamfiset/algorithms/graphtheory/Kahns.java
+    public static List<Node> kahnDagSort(Node... nodes){
+        return kahnDagSort(Arrays.asList(nodes));
+    }
+    public static List<Node> kahnDagSort(List<Node> nodes){
+        return KahnDagSort.sort(nodes,Node::getSources);
+    }
+    public static List<Node> old_kahnDagSort(List<Node> nodes){
+        Map<String, AtomicInteger> inDegrees = new HashMap<>();
+        if(nodes == null || nodes.isEmpty()){
+            return nodes;
+        }
+        nodes.forEach(n->{
+            inDegrees.put(n.getFqdn(),new AtomicInteger(0));
+        });
+        nodes.forEach(n->{
+            n.sources.stream()
+                    .forEach(s->{
+                        if(inDegrees.containsKey(s.getFqdn())){
+                            inDegrees.get(s.getFqdn()).incrementAndGet();
+                        }
+                    });
+        });
+        Queue<Node> q = new ArrayDeque<>();
+        //using reveresed to preserve order
+        nodes.reversed().forEach(n->{
+            if(inDegrees.get(n.getFqdn()).get()==0){
+                q.offer(n);
+            }
+        });
+        List<Node> rtrn = new ArrayList<>();
+        while(!q.isEmpty()){
+            Node n = q.poll();
+            rtrn.add(n);
+            n.sources.stream()
+                    .forEach(s->{
+                        if(inDegrees.containsKey(s.getFqdn())){
+                            int newDegree = inDegrees.get(s.getFqdn()).decrementAndGet();
+                            if(newDegree == 0){
+                                q.offer(s);
+                            }
+                        }
+                    });
+        }
+        int sum = inDegrees.values().stream().map(AtomicInteger::get).reduce(Integer::sum).orElse(0);
+        if(sum > 0){
+            //this means there are loops!!
+            //using reversed to preserve order
+            nodes.reversed().forEach(n->{
+                if(inDegrees.get(n.getFqdn()).get() > 0){
+                    rtrn.add(0,n);//they will then go to the back
+                }
+            });
+        }
+        //reverse because of graph direction
+        Collections.reverse(rtrn);
+        return rtrn;
+    }
+
+    public boolean isCircular(){
+        return KahnDagSort.isCircular(this,Node::getSources);
+    }
+
+
+}
