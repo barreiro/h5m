@@ -100,7 +100,7 @@ target/h5m list test values by foo
 ```
 or separate each node as a separate column with `as table`
 ```shell
-arget/h5m list test values by foo as table
+target/h5m list test values by foo as table
 ┌──────────────────────────┬────────────────────────┬───────────┐
 │           bar            │          biz           │   name    │
 ├──────────────────────────┼────────────────────────┼───────────┤
