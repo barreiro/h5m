@@ -147,7 +147,7 @@ public class ValueService {
                             select v.id as vid, s.sortable as sortable
                                 from value v join value_edge ve on v.id = ve.source_id join sorter s on s.vid = ve.value_id
                         )
-                        select * from value v join ancestor a on v.id=a.vid join sorter s on v.id=s.vid where v.node_id=:sourceId order by s.sortable desc;
+                        select * from value v join ancestor a on v.id=a.vid join sorter s on v.id=s.vid where v.node_id=:sourceId order by s.sortable asc;
                         """,Value.class)
                 .setParameter("nodeId", fingerprint.node.id)
                 .setParameter("data", fingerprint.data.toString())
