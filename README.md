@@ -2,13 +2,16 @@
 h5m is H{orreu}m but lighter (thus fewer characters).
 
 This is a proof of concept for a light weight Horreum entity model based on a directed acyclical graph of computations and resulting values.
-The existing Labels with Extractors and Combination Functions are gone. 
-Extractor and Combination Function become nodes with edges connecting the output of one node to the input of another.
+The existing Entities (Labels, Extractors, Transformers, Variables, ...)  are gone. 
+All entities that calculate values from input become nodes with edges connecting the output of one node to the input of another.
 
 Other changes:
 * Replace postgres' jsonpath with `jq`
 * Tests are Folders on the file system
 * Runs are files in the test folder on the file system
+* Value calculations are managed by a persistence backed ExecutorService instead of a JMS Queue.
+
+
 
 ## Getting started
 ### 1. Install jq
@@ -141,7 +144,7 @@ The existing Horreum entity model (Schemas, Labels, Extractors, Combination Func
 * NodeGroup - a group of nodes that work on the same source data.
 * Value - The output of a Node applied to it's input. A Node can produce multiple values (e.g. Datasets) which will be treated as separate inputs for other nodes.
 
-There will be different types of nodes for the different types of tasks. The PoC currently only supports `jq`
+There will be different types of nodes for the different types of tasks. The PoC currently supports `jq` and `js`
 
 ### WorkQueue
 
