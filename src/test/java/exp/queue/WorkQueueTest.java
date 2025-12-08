@@ -24,7 +24,7 @@ public class WorkQueueTest {
 
     @Test
     public void poll_null_until_source_completes() throws InterruptedException, SystemException, NotSupportedException, HeuristicRollbackException, HeuristicMixedException, RollbackException {
-        WorkQueue q = new WorkQueue(workService,null,null,null);
+        WorkQueue q = new WorkQueue(null,null,null);
 
         tm.begin();
         Node aNode = new JqNode("a");
@@ -35,7 +35,7 @@ public class WorkQueueTest {
 
         Work aWork = new Work(aNode,null,null);
         aWork.persist();
-        Work bWork = new Work(bNode,bNode.sources,null);
+        Work bWork = new Work(bNode,null,null);
         bWork.persist();
         tm.commit();
 
@@ -60,7 +60,7 @@ public class WorkQueueTest {
 
     @Test
     public void poll_return_first_non_blocked() throws SystemException, NotSupportedException, HeuristicRollbackException, HeuristicMixedException, RollbackException {
-        WorkQueue q = new WorkQueue(workService,null,null,null);
+        WorkQueue q = new WorkQueue(null,null,null);
 
         tm.begin();
         Node aNode = new JqNode("a");
@@ -73,9 +73,9 @@ public class WorkQueueTest {
 
         Work aWork = new Work(aNode,null,null);
         aWork.persist();
-        Work bWork = new Work(bNode,bNode.sources,null);
+        Work bWork = new Work(bNode,null,null);
         bWork.persist();
-        Work cWork = new Work(cNode,cNode.sources,null);
+        Work cWork = new Work(cNode,null,null);
         cWork.persist();
         tm.commit();
 

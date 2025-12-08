@@ -9,7 +9,6 @@ import exp.svc.ValueService;
 import exp.svc.WorkService;
 import jakarta.transaction.Transactional;
 
-import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -19,25 +18,16 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 
+
+/*
+ * Ideas:
+ * * change to accept Runnable and keep the runnable behind the preceding Work when re-sorting
+ *   This would allow us to have "callbacks" in the work queue that do not persist to DB
+ *   For Example: having a synchronous upload that responds with change detection when all nodes finish calculating
+*
+ */
 public class WorkQueue implements BlockingQueue<Runnable> {
-    class WorkRunner implements Runnable {
-        private Work work;
-        private Counters<Node> counters;
-
-        public WorkRunner(Work work) {
-            this.work = work;
-        }
-
-        public Work getWork() {return work;}
-
-        @Override
-        public void run() {
-            //have to use a parent class method because @Transactional on run is invalid
-            //"[...] declares an interceptor binding, but it must be ignored per CDI rules"
-            doWork(work);
-        }
-    }
-    List<Work> todo;
+    //List<Work> todo;
     private Counters<Node> counters = new Counters<>();
 
     private final AtomicInteger count = new AtomicInteger();
@@ -45,22 +35,22 @@ public class WorkQueue implements BlockingQueue<Runnable> {
     private final Condition notEmpty = takeLock.newCondition();
     private final ReentrantLock putLock = new ReentrantLock();
 
+    private List<Runnable> runnables = new  ArrayList<>();
 
-    private final WorkService workService;
-    private final NodeGroupService nodeGroupService;
-    private final NodeService nodeService;
-    private final ValueService valueService;
 
-    public WorkQueue(WorkService workService, NodeGroupService nodeGroupService, NodeService nodeService, ValueService valueService) {
-        this.workService = workService;
-        this.nodeGroupService = nodeGroupService;
-        this.nodeService = nodeService;
-        this.valueService = valueService;
+    private NodeService nodeService;
+    private WorkService workService;
+    private ValueService valueService;
 
+    public WorkQueue(NodeService nodeService, ValueService valueService, WorkService workService) {
         counters.setCallback("onComplete",this::onComplete);
 
+        this.nodeService = nodeService;
+        this.valueService = valueService;
+        this.workService = workService;
+
         //replace with a better performant option
-        this.todo = new CopyOnWriteArrayList<>();
+        this.runnables = new CopyOnWriteArrayList<>();
     }
 
     public void addCallback(String name, Consumer<Node> callback){
@@ -76,15 +66,10 @@ public class WorkQueue implements BlockingQueue<Runnable> {
         return counters.sum();
     }
 
-    public boolean hasWorkService(){return workService != null;}
-    public boolean hasNodeGroupService(){return nodeGroupService != null;}
-    public boolean hasNodeService(){return nodeService != null;}
-    public boolean hasValueService(){return valueService != null;}
-
     public void onComplete(Node n){
         takeLock.lock();
         try {
-            if(!todo.isEmpty()){
+            if(!runnables.isEmpty()){
                 //signal all because this could unblock multiple work items
                 notEmpty.signalAll();
             }
@@ -93,35 +78,9 @@ public class WorkQueue implements BlockingQueue<Runnable> {
         }
     }
 
-    @Transactional
-    public void doWork(Work work){
-        try {
-            if(work.activeNode==null || work.sourceValues == null || work.sourceValues.isEmpty()){
-                //error conditions
-            }
-            //looping over values works for Jq / Js nodes but what about cross test comparison
-            //calculateValue should probably accept all sourceValues and leave it to the node function to decide
-            List<Value> calculated = nodeService.calculateValues(work.activeNode,work.sourceValues);
-            //TODO purge existing values
-            for(Value v : work.sourceValues) {
-                valueService.deleteDescendantValues(v, work.activeNode);
-            }
-            //TODO change drop drop and replace to update data?
-            //does this break descendant values or do we assume they will recalculate?
-            for(Value newValue : calculated){
-                valueService.create(newValue);
-            }
-            //not in the finally so that it only happens if the work succeeds
-            //TODO this is throwing TransactionRequiredException
-            workService.delete(work);
-        }catch( Exception e){
-            //TODO how to handle the exception, adding it back to the todo list
-            addWork(work);
-        } finally {
-            if(work.activeNode!=null){
-                counters.decrement(work.activeNode);
-            }
-        }
+
+    void decrement(Work work){
+        counters.decrement(work.activeNode);
     }
 
     private void fullyLock(){
@@ -141,45 +100,82 @@ public class WorkQueue implements BlockingQueue<Runnable> {
         }
     }
 
-    private Work removeFirstUnblocked(){
+    private int getScore(int index){
+        Runnable runnable = runnables.get(index);
+        if(runnable instanceof WorkRunner){
+            WorkRunner workRunner = (WorkRunner) runnable;
+            return workRunner.work.sourceNodes.stream().mapToInt(n -> counters.get(n)).sum();
+        }else if (index > 0){//if this a normable Runnable
+            // can we just return index because it has to run after any preceding?
+            // what if the preceding is already out of queue but not done?
+            // we need some tracking between runnable when added
+            return getScore(index-1);
+        }else{
+            return 0;
+        }
+    }
 
-        Work found = null;
+    private Runnable removeFirstUnblocked(){
+
+        Runnable found = null;
         int idx = 0;
         int score = -1;
 
         fullyLock();
         try {
-            if(todo.isEmpty()){
+            if(runnables.isEmpty()){
                 return null;
             }
             do {
-                found = todo.get(idx);
-                score = found.sourceNodes.stream().mapToInt(n -> counters.get(n)).sum();
+                found = runnables.get(idx);
+                score = getScore(idx);
                 if (score > 0) {
                     found = null;
                 }
                 idx++;
-            } while (idx < todo.size() && score > 0);
+            } while (idx < runnables.size() && score > 0);
             if (found != null) {
-                Work removed = todo.remove(idx - 1); //index of found
-                assert !todo.contains(found);
+                Runnable removed = runnables.remove(idx - 1); //index of found
+                assert !runnables.contains(found);
             }
         }finally {
             fullyUnlock();
         }
         return found;
     }
+
+    /**
+     * get the runables that the input runnale must follow
+     * @param runnable
+     * @return
+     */
+    public List<Runnable> getRequiredPrecedingRunables(Runnable runnable){
+        int index = runnables.indexOf(runnable);
+        if(runnable instanceof WorkRunner){
+            WorkRunner workRunner = (WorkRunner) runnable;
+            return runnables.stream().filter(v->
+                    v instanceof WorkRunner && workRunner.work.dependsOn(((WorkRunner) v).work)
+            ).toList();
+        }else if(index > 0){
+                return List.of(runnables.get(index-1));
+        }else{
+            return Collections.emptyList();
+        }
+    }
+    private void sort(){
+        runnables = KahnDagSort.sort(runnables,this::getRequiredPrecedingRunables);
+    }
     public void addWorks(Collection<Work> works){
         putLock.lock();
         try {
-            works.forEach(todo::add);
+            works.forEach(w->runnables.add(new WorkRunner(w,this,nodeService,valueService,workService)));
             int c = count.getAndAdd(works.size());
             works.forEach(work -> {
                 if (work.activeNode != null) {
                     counters.increment(work.activeNode);
                 }
             });
-            todo = KahnDagSort.sort(todo, w -> w.getDependentWorks(getTodo()));
+            sort();
             if(c == 0){
                 signalNotEmpty();
             }
@@ -188,32 +184,33 @@ public class WorkQueue implements BlockingQueue<Runnable> {
         }
     }
     public void addWork(Work work) {
+        add(new WorkRunner(work,this,nodeService,valueService,workService));
+    }
+    @Override
+    public boolean add(Runnable runnable) {
         putLock.lock();
         try {
-            todo.add(work);
+            runnables.add(runnable);
             int c = count.getAndIncrement();
-            if (work.activeNode != null) {
-                counters.increment(work.activeNode);
+            if(runnable instanceof WorkRunner){
+                WorkRunner workRunner = (WorkRunner) runnable;
+                if (workRunner.work.activeNode != null) {
+                    counters.increment(workRunner.work.activeNode);
+                }
+                sort();
             }
-            todo = KahnDagSort.sort(todo, w -> w.getDependentWorks(getTodo()));
             if(c == 0){
                 signalNotEmpty();
             }
         }finally {
             putLock.unlock();
         }
-    }
-    public boolean hasWork(Work work){
-        return todo.contains(work);
-    }
-
-    public List<Work> getTodo(){return new ArrayList<>(todo);}
-
-
-    @Override
-    public boolean add(Runnable runnable) {
         //This is not supported
-        return false;
+        return true;
+    }
+
+    public boolean hasWork(Work work){
+        return runnables.stream().anyMatch(v->v instanceof WorkRunner && work.equals(((WorkRunner) v).work));
     }
 
     @Override
@@ -241,7 +238,7 @@ public class WorkQueue implements BlockingQueue<Runnable> {
             if(count.get()==0){
                 return null;
             }
-            Work found = removeFirstUnblocked();
+            Runnable found = removeFirstUnblocked();
             if(found == null){
                 return null;
             }
@@ -249,7 +246,7 @@ public class WorkQueue implements BlockingQueue<Runnable> {
             if(c > 1){
                 notEmpty.signal();
             }
-            return new WorkRunner(found);
+            return found;
         } finally {
             takeLock.unlock();
         }
@@ -271,7 +268,7 @@ public class WorkQueue implements BlockingQueue<Runnable> {
         }
         takeLock.lock();
         try{
-            return count.get() > 0 ? new WorkRunner(todo.get(0)) : null;
+            return count.get() > 0 ? runnables.get(0) : null;
         }finally {
             takeLock.unlock();
         }
@@ -295,7 +292,7 @@ public class WorkQueue implements BlockingQueue<Runnable> {
             while (count.get() == 0) {
                 notEmpty.await();
             }
-            Work work = null;
+            Runnable work = null;
             do {
                 work = removeFirstUnblocked();
                 if (work == null) {
@@ -306,7 +303,7 @@ public class WorkQueue implements BlockingQueue<Runnable> {
             if (c > 1) {
                 notEmpty.signal();
             }
-            return new WorkRunner(work);
+            return work;
         } finally {
             takeLock.unlock();
         }
@@ -323,7 +320,7 @@ public class WorkQueue implements BlockingQueue<Runnable> {
                 }
                 nanos = notEmpty.awaitNanos(nanos);
             }
-            Work work = null;
+            Runnable work = null;
             while(work == null){
                 work = removeFirstUnblocked();
                 if(work == null){
@@ -337,7 +334,7 @@ public class WorkQueue implements BlockingQueue<Runnable> {
             if( c > 1){
                 notEmpty.signal();
             }
-            return new WorkRunner(work);
+            return work;
         } finally {
             takeLock.unlock();
         }
@@ -351,23 +348,18 @@ public class WorkQueue implements BlockingQueue<Runnable> {
     @Override
     public boolean remove(Object o) {
         boolean rtrn = false;
-        if(o instanceof Work){
-            Work work = (Work)o;
-            if(todo.contains(work)){
-                fullyLock();
-                try{
-                    rtrn = todo.remove(work);
-                } finally {
-                    fullyUnlock();
-                }
-            }
+        fullyLock();
+        try{
+            rtrn = runnables.remove(o);
+        } finally {
+            fullyUnlock();
         }
         return rtrn;
     }
 
     @Override
     public boolean containsAll(Collection<?> c) {
-        return todo.containsAll(c);
+        return runnables.containsAll(c);
     }
 
     @Override
@@ -378,15 +370,25 @@ public class WorkQueue implements BlockingQueue<Runnable> {
 
     @Override
     public boolean removeAll(Collection<?> c) {
-        todo.removeAll(c);
-        //removing should not require a resport as the items are already sorted
-        return false;
+        fullyLock();
+        try {
+            runnables.removeAll(c);
+            //removing should not require a resport as the items are already sorted
+        }finally {
+            fullyUnlock();
+        }
+        return true;
     }
 
     @Override
     public boolean retainAll(Collection<?> c) {
-        todo.retainAll(c);
-        todo = KahnDagSort.sort(todo,w->w.getDependentWorks(getTodo()));
+        fullyLock();
+        try {
+            runnables.retainAll(c);
+            sort();
+        }finally {
+            fullyUnlock();
+        }
         return false;
     }
 
@@ -394,7 +396,7 @@ public class WorkQueue implements BlockingQueue<Runnable> {
     public void clear() {
         fullyLock();
         try {
-            todo.clear();
+            runnables.clear();
         }finally {
             fullyUnlock();
         }
@@ -402,33 +404,32 @@ public class WorkQueue implements BlockingQueue<Runnable> {
 
     @Override
     public int size() {
-        return todo.size();
+        return runnables.size();
     }
 
     @Override
     public boolean isEmpty() {
-        return todo.isEmpty();
+        return runnables.isEmpty();
     }
 
     @Override
     public boolean contains(Object o) {
-        return todo.contains(o);
+        return runnables.contains(o);
     }
 
     @Override
     public Iterator<Runnable> iterator() {
-        //not supported
-        return null;
+        return runnables.iterator();
     }
 
     @Override
     public Object[] toArray() {
-        return todo.toArray();
+        return runnables.toArray();
     }
 
     @Override
     public <T> T[] toArray(T[] a) {
-        return todo.toArray(a);
+        return runnables.toArray(a);
     }
 
     @Override

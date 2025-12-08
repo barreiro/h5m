@@ -8,7 +8,7 @@ import java.util.function.Function;
 //based on https://github.com/williamfiset/Algorithms/blob/master/src/main/java/com/williamfiset/algorithms/graphtheory/Kahns.java
 public class KahnDagSort {
     /**
-     * Performs a KahnDag sort of the items in T preserving current order for un-related entries.
+     * Performs a KahnDag sort of the items in T preserving current relative order for un-related entries.
      * T must have a unique hashCode and proper equals method for each entry as collisions will cause items to be dropped.
      * @param list
      * @param getDependencies function that calculates the dependencies of the input item

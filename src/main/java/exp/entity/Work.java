@@ -1,9 +1,5 @@
 package exp.entity;
 
-import exp.queue.WorkQueue;
-import exp.svc.NodeGroupService;
-import exp.svc.NodeService;
-import exp.svc.ValueService;
 import io.quarkus.hibernate.orm.panache.PanacheEntity;
 import jakarta.persistence.*;
 import org.hibernate.annotations.Immutable;
@@ -15,7 +11,11 @@ import java.util.*;
         name = "work"
 )
 @DiscriminatorColumn(name = "type")
+@DiscriminatorValue("node")
 @Immutable
+//cross test comparison could use sourceNodes and not have an activeNode?
+//custom post nodegroup actions could have sourceNodes without activeNode
+
 public class Work  extends PanacheEntity implements Comparable<Work>{
 
     @ManyToMany(cascade = CascadeType.ALL, fetch = FetchType.LAZY)
@@ -34,13 +34,20 @@ public class Work  extends PanacheEntity implements Comparable<Work>{
     )
     public List<Node> sourceNodes; //what is going to use a list of sources that are not already listed for the activeNode?
 
+    public int retryCount;
+
     @ManyToOne
     @JoinColumn(name = "active_node_id")
-    public Node activeNode; //is there any work that would not have a node associated?
+    public Node activeNode;
+
+    boolean cumulative = false;
 
 
-    public Work(){}
+    public Work(){
+        retryCount = 0;
+    }
     public Work(Node activeNode,List<Node> sourceNodes,List<Value> sourceValues){
+        this();
         this.activeNode = activeNode;
         this.sourceValues = sourceValues == null ? Collections.emptyList() : new ArrayList(sourceValues);
         this.sourceNodes = sourceNodes == null ? Collections.emptyList() : new ArrayList(sourceNodes);
@@ -55,21 +62,35 @@ public class Work  extends PanacheEntity implements Comparable<Work>{
     }
 
     //work A depends on work B if A.activeNode depends on B.activeNode or
+    //needs reviewing for the value dependency
     public boolean dependsOn(Work work){
 
         if(work == null || work.activeNode == null){
             return false;
         }
-        boolean activeValue = activeNode!=null && activeNode.dependsOn(work.activeNode);
-        boolean foundValue = sourceValues.stream().anyMatch(sourceValue ->
-                sourceValue.node.dependsOn(work.activeNode));
+        boolean activeNode = this.activeNode !=null && this.activeNode.dependsOn(work.activeNode);
+        boolean sameValue = sourceValues.stream().anyMatch(v->work.sourceValues.contains(v));
+        if(sameValue){
+            sourceValues.forEach(v->{
+                if(work.sourceValues.contains(v)){
+                    System.out.println("work contains v"+v);
+                }
+            });
+        }
+        boolean dependentValue = sourceValues.stream().anyMatch(sourceValue ->
+                sourceValue.node.dependsOn(work.activeNode) && work.sourceValues.stream().anyMatch(sourceValue::dependsOn)) ;
         boolean foundNode = sourceNodes.stream().anyMatch(sourceNode ->
                 sourceNode.dependsOn(work.activeNode));
 
-        return foundValue || foundNode || activeValue;
+        return dependentValue || (activeNode && (sameValue || cumulative || sourceValues.isEmpty()));
     }
 
-    public List<Work> getDependentWorks(List<Work> works){
+    /**
+     * filters works for any Work that are in the dependsOn path for this
+     * @param works
+     * @return
+     */
+    public List<Work> getAncestorWorks(List<Work> works){
         List<Work> rtrn = works.stream().filter(this::dependsOn).toList();
         return rtrn;
     }

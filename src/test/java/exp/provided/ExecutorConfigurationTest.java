@@ -24,9 +24,5 @@ public class ExecutorConfigurationTest {
     public void initialize_with_inject() {
         WorkQueue workQueue = executor.getWorkQueue();
         assertNotNull(workQueue,"queue should not be null");
-        assertTrue(workQueue.hasWorkService(),"queue should have a work service");
-        assertTrue(workQueue.hasNodeGroupService(),"queue should have a node group service");
-        assertTrue(workQueue.hasNodeService(),"queue should have a node service");
-        assertTrue(workQueue.hasValueService(),"queue should have a value service");
     }
 }

@@ -63,7 +63,7 @@ public class ExecutorConfiguration {
     @Priority(9997)
     @Named("workExecutor")
     public WorkQueueExecutor initDatasource(/*CommandLine.ParseResult parseResult*/) throws SQLException {
-        WorkQueue workQueue = new WorkQueue(workService,nodeGroupService,nodeService,valueService);
+        WorkQueue workQueue = new WorkQueue(nodeService,valueService,workService);
         WorkQueueExecutor rtrn = new WorkQueueExecutor(
                 1,
                 maximumPoolSize,
