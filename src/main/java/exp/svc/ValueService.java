@@ -210,7 +210,7 @@ public class ValueService {
                      UNION ALL
                      SELECT ve.value_id from value_edge ve JOIN sourceRecursive sr ON ve.source_id = sr.v_id
                 )
-                SELECT * FROM value v JOIN sourceRecursive sr ON v.id = sr.v_id
+                SELECT distinct * FROM value v JOIN sourceRecursive sr ON v.id = sr.v_id
                 """, Value.class
         ).setParameter("nodeId",node.id).getResultList());
         return rtrn;
