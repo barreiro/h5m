@@ -294,7 +294,7 @@ public class ListCmd implements Callable<Integer> {
             for(int a=0; a<columnCount; a++){
                 Object c = accessors.get(a).apply(value);
                 if( c == null){
-                    c = H5m.consoleAttached() ? AsciiArt.ANSI_DARK_GREY+"NULL"+AsciiArt.ANSI_RESET: "NULL";
+                    c = "NULL";
                 }else if( c instanceof Long || c instanceof Integer){
                     if(columnFormats[a]==null){
                         columnFormats[a] = "d";
@@ -322,19 +322,19 @@ public class ListCmd implements Callable<Integer> {
                 columnFormats[i] = "s";
             }
         }
-        int widthSum = IntStream.of(columnWidths).sum();
-        if(widthSum > maxWidth-3*(columnCount-1) ){
-            for(int i=0; i<columnCount; i++){
-                columnWidths[i] = Math.floorDiv(columnWidths[i],maxWidth-3*(columnCount-1));
-            }
-            for(Object[] row : rows){
-                for(int i=0; i<columnCount; i++){
-                    if(columnFormats[i].equals("s") && row[i].toString().length() > columnWidths[i]){
-                        row[i] = row[i].toString().substring(0,columnWidths[i]-1)+ AsciiArt.ELLIPSIS;
-                    }
-                }
-            }
-        }
+//        int widthSum = IntStream.of(columnWidths).sum();
+//        if(widthSum > maxWidth-3*(columnCount-1) ){
+//            for(int i=0; i<columnCount; i++){
+//                columnWidths[i] = Math.floorDiv(columnWidths[i],maxWidth-3*(columnCount-1));
+//            }
+//            for(Object[] row : rows){
+//                for(int i=0; i<columnCount; i++){
+//                    if(columnFormats[i].equals("s") && row[i].toString().length() > columnWidths[i]){
+//                        row[i] = row[i].toString().substring(0,columnWidths[i]-1)+ AsciiArt.ELLIPSIS;
+//                    }
+//                }
+//            }
+//        }
         StringBuilder topBorderFormat = new StringBuilder();
         StringBuilder bottomBorderFormat = new StringBuilder();
         StringBuilder headerFormat = new StringBuilder();
