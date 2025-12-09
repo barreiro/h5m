@@ -472,11 +472,12 @@ public class NodeService {
                 "--from-file",
                 tmpFilter.toPath().toAbsolutePath().toString()
         ));
-        if(node.sources.size()>1 || sourceValues.size() >1){//if this is a multi file input
-            args.add("--slurp");
-        }else if ( JqNode.isNullInput(node.operation)){
+        if ( JqNode.isNullInput(node.operation)){
             args.add("--null-input");
+        }else if(node.sources.size()>1 || sourceValues.size() >1){//if this is a multi file input
+            args.add("--slurp");
         }
+
         args.add("--compact-output");
         args.add("--");//terminate argument processing
         //iterate sources to preserve order
