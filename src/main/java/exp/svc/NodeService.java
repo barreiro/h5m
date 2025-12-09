@@ -242,8 +242,7 @@ public class NodeService {
             System.err.println("Error occurred reading parameters from js function\n"+node.operation);
             return Collections.emptyList();
         }
-        List<JsonNode> input = params.stream().map(name->sourceValues.get(name).data).toList();
-        //Object result = StringUtil.jsEval(node.operation, (Object[]) input.toArray(new JsonNode[0]));
+        List<JsonNode> input = JsNode.createParameters(node.operation, sourceValues);
         Object result = null;
         try(Context context = Context.newBuilder("js").engine(Engine.newBuilder("js").option("engine.WarnInterpreterOnly", "false").build())
                 .allowExperimentalOptions(true)
