@@ -49,11 +49,10 @@ public class WorkRunner implements Runnable {
             //looping over values works for Jq / Js nodes but what about cross test comparison
             //calculateValue should probably accept all sourceValues and leave it to the node function to decide
             List<Value> calculated = nodeService.calculateValues(work.activeNode,work.sourceValues);
-            //TODO purge existing values
             for(Value v : work.sourceValues) {
                 valueService.deleteDescendantValues(v, work.activeNode);
             }
-            //TODO change drop drop and replace to update data?
+            //TODO change drop to drop and replace to update data?
             //does this break descendant values or do we assume they will recalculate?
             for(Value newValue : calculated){
                 valueService.create(newValue);

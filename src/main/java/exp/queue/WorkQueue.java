@@ -62,18 +62,16 @@ public class WorkQueue implements BlockingQueue<Runnable> {
         return activeWork.isEmpty() && runnables.isEmpty();
     }
 
-
-
     void decrement(Work work){
-        activeWork.remove(work);
-        takeLock.lock();
+        fullyLock();
         try {
+            activeWork.remove(work); // will be re-added to the queue if needed
             if(!runnables.isEmpty()){
                 //signal all because this could unblock multiple work items
                 notEmpty.signalAll();
             }
         } finally {
-            takeLock.unlock();
+            fullyUnlock();
         }
     }
 
