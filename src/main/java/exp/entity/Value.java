@@ -48,7 +48,8 @@ public class Value extends PanacheEntity {
     private LocalDateTime createdAt;
 
 
-    @ManyToMany(cascade = { CascadeType.ALL }, fetch = FetchType.LAZY )
+    //cannot cascade delete becasue this entity "owns" the reference to the parent values
+    @ManyToMany(cascade = { CascadeType.PERSIST, CascadeType.MERGE }, fetch = FetchType.LAZY )
     @JoinTable(
             name="value_edge",
             joinColumns = @JoinColumn(name = "value_id"), // Custom join column referencing the Student entity

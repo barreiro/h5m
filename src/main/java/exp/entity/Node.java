@@ -42,7 +42,8 @@ public abstract class Node extends PanacheEntity implements Comparable<Node> {
     public NodeGroup group;
 
     //making this eager causes too many joins
-    @ManyToMany(cascade = { CascadeType.ALL }, fetch = FetchType.LAZY )
+    //cannot cascade delete because this entity "owns" the reference to the parent values
+    @ManyToMany(cascade = { CascadeType.PERSIST, CascadeType.MERGE }, fetch = FetchType.LAZY )
     @JoinTable(
             name="node_edge",
             joinColumns = @JoinColumn(name = "node_id"), // Custom join column referencing the Student entity

@@ -56,6 +56,27 @@ public class NodeServiceTest extends FreshDb {
     }
 
     @Test
+    public void delete_does_not_cascade_and_delete_ancestor() throws HeuristicRollbackException, SystemException, HeuristicMixedException, RollbackException, NotSupportedException {
+        tm.begin();
+        Node rootNode = new RootNode();
+        rootNode.persist();
+        Node aNode = new JqNode("a",".a");
+        aNode.sources=List.of(rootNode);
+        aNode.persist();
+        tm.commit();
+
+        tm.begin();
+        aNode.delete();
+        tm.commit();
+
+        Node found = Node.findById(rootNode.id);
+        assertNotNull(found);
+
+
+    }
+
+
+    @Test
     public void calculateJsValue_no_source() throws IOException {
         ObjectMapper mapper = new ObjectMapper();
         JsNode jsNode = new JsNode("js","()=>123");
