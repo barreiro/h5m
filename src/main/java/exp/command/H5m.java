@@ -67,7 +67,7 @@ public class H5m implements QuarkusApplication {
         return 0;
     }
 
-    @CommandLine.Command(name="purge-values", description = "remove all values (to re-scan)")
+    @CommandLine.Command(name="purge-values", description = "remove all values (to re-upload)")
     public int purgeValues(){
         valueService.purgeValues();
         return 0;

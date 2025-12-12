@@ -125,7 +125,7 @@ public class H5mTest {
     }
 
     @Test
-    public void scan_list_values(QuarkusMainLauncher launcher) throws IOException {
+    public void upload_list_values(QuarkusMainLauncher launcher) throws IOException {
         Path folder = Files.createTempDirectory("h5m");
         Path filePath = Files.writeString(Files.createTempFile(folder,"h5m",".json").toAbsolutePath(),
                 """
@@ -159,7 +159,7 @@ public class H5mTest {
         assertTrue(result.getOutput().contains(" \"buz\" "),"result should contain .bar:" +result.getOutput());
     }
     @Test
-    public void scan_list_values_by_node(QuarkusMainLauncher launcher) throws IOException {
+    public void upload_list_values_by_node(QuarkusMainLauncher launcher) throws IOException {
         Path folder = Files.createTempDirectory("h5m");
         Path filePath = Files.writeString(Files.createTempFile(folder,"h5m",".json").toAbsolutePath(),
                 """
@@ -196,7 +196,7 @@ public class H5mTest {
         });
     }
     @Test
-    public void scan_jq_multi_input(QuarkusMainLauncher launcher) throws IOException {
+    public void upload_jq_multi_input(QuarkusMainLauncher launcher) throws IOException {
         Path folder = Files.createTempDirectory("h5m");
         Path filePath = Files.writeString(Files.createTempFile(folder,"h5m",".json").toAbsolutePath(),
                 """
@@ -226,7 +226,7 @@ public class H5mTest {
         assertTrue(result.getOutput().contains("Count: 8"));
     }
     @Test
-    public void scan_js_multi_input(QuarkusMainLauncher launcher) throws IOException {
+    public void upload_js_multi_input(QuarkusMainLauncher launcher) throws IOException {
         Path folder = Files.createTempDirectory("h5m");
         Path filePath = Files.writeString(Files.createTempFile(folder,"h5m",".json").toAbsolutePath(),
                 """
