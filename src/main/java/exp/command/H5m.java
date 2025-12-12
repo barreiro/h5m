@@ -1,5 +1,7 @@
 package exp.command;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import exp.entity.Folder;
 import exp.entity.Node;
 import exp.entity.NodeGroup;
@@ -21,6 +23,8 @@ import picocli.AutoComplete;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 
+import java.io.File;
+import java.io.IOException;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.List;
@@ -31,7 +35,7 @@ import java.util.concurrent.TimeUnit;
 @QuarkusMain
 @TopCommand
 //@Command(name = "", mixinStandardHelpOptions = true)
-@CommandLine.Command(name="", mixinStandardHelpOptions = true, subcommands={CommandLine.HelpCommand.class, AutoComplete.GenerateCompletion.class, ListCmd.class, AddCmd.class, RemoveCmd.class})
+@CommandLine.Command(name="", mixinStandardHelpOptions = true,separator = " ", subcommands={CommandLine.HelpCommand.class, AutoComplete.GenerateCompletion.class, ListCmd.class, AddCmd.class, RemoveCmd.class})
 public class H5m implements QuarkusApplication {
 
     //@Inject
@@ -92,6 +96,41 @@ public class H5m implements QuarkusApplication {
         workExecutor.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
         return 0;
     }
+    @CommandLine.Command(name="upload",description = "")
+    public int upload(
+            @CommandLine.Parameters(index="0")
+            String path,
+            @CommandLine.Option(names = {"to"},description = "grouping node" ,arity = "1")
+            String folderName
+    ){
+        Folder folder = folderService.byName(folderName);
+        if(folder == null){
+            System.err.println("could not find folder "+folderName);
+            return 1;
+        }
+        File pathFile  = new File(path);
+        if(!pathFile.exists()){
+            System.err.println("upload path does not exist: "+path);
+            return 1;
+        }
+        List<File> todo = pathFile.isDirectory() ? List.of(pathFile.listFiles(s->s.toString().endsWith(".json") && !s.getName().startsWith("."))): List.of(pathFile);
+        ObjectMapper objectMapper = new ObjectMapper();
+        for( File f : todo){
+            try {
+                JsonNode read = objectMapper.readTree(f);
+                if(read!=null){
+                    folderService.upload(folder,f.getPath(),read);
+                }else{
+                    System.err.println(f.getPath()+" could not be loaded as json");
+                }
+            } catch (IOException e) {
+                System.err.println("failure trying to read "+f.getPath()+"\n"+e.getMessage());
+                return 1;
+            }
+        }
+        return 0;
+    }
+
     @CommandLine.Command(name="scan",description = "scan folder for new files and compute values")
     public int scan(String folderName) throws InterruptedException {
         Folder folder = folderService.byName(folderName);

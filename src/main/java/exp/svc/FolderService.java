@@ -9,6 +9,7 @@ import exp.entity.Work;
 import exp.pasted.JsonBinaryType;
 import exp.queue.WorkQueue;
 import exp.queue.WorkQueueExecutor;
+import exp.queue.WorkRunner;
 import io.hyperfoil.tools.yaup.json.Json;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -115,6 +116,11 @@ public class FolderService {
     }
 
 
+    /**
+     * Schedules recalculation of all Values in the Folder.
+     * At the moment that means replacing all calculated values (no equality checking).
+     * @param folder
+     */
     @Transactional
     public void recalculate(Folder folder){
         folder = Folder.findById(folder.id); // deal with detached entity
@@ -128,7 +134,16 @@ public class FolderService {
             });
         }
     }
-
+    @Transactional
+    public void upload(Folder folder,String path,JsonNode data){
+        folder = Folder.findById(folder.id); // deal with detached entity
+        Value newValue = new Value(folder,folder.group.root, path,data);
+        valueService.create(newValue);
+        WorkQueue workQueue = workExecutor.getWorkQueue();
+        folder.group.sources.forEach(source -> {
+            workQueue.addWork(new Work(source,source.sources,List.of(newValue)));
+        });
+    }
     @Transactional
     public void scan(Folder folder){
         folder = Folder.findById(folder.id); // deal with detached entity

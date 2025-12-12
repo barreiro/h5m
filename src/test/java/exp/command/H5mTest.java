@@ -145,7 +145,7 @@ public class H5mTest {
                 new String[]{"add","jq","to","test","bar","{foo}:.bar"},
                 new String[]{"add","jq","to","test","biz","{bar}:.biz"},
                 new String[]{"list","test","nodes",},
-                new String[]{"scan","test"},
+                new String[]{"upload",folder.toString(),"to","test"},
                 new String[]{"list","value","from","test"}
         );
         results.forEach(result->{
@@ -188,7 +188,7 @@ public class H5mTest {
                 new String[]{"add","jq","to","test","bar","{foo}:.bar"},
                 new String[]{"add","jq","to","test","biz","{bar}:.biz[] + \"-it\""},//this should also split into a dataset
                 new String[]{"list","test","nodes"},
-                new String[]{"scan","test"},
+                new String[]{"upload",folder.toString(),"to","test"},
                 new String[]{"list","value","from","test","by","foo"}
         );
         results.forEach(result->{
@@ -215,7 +215,7 @@ public class H5mTest {
                 new String[]{"add","jq","to","demo","mem","{foo}:.mem"},
                 new String[]{"add","jq","to","demo","fingerprint","{mem,cpu}:."},
                 new String[]{"list","demo","nodes"},
-                new String[]{"scan","demo"},
+                new String[]{"upload",folder.toString(),"to","demo"},
                 new String[]{"list","value","from","demo"}
 
         );
@@ -245,7 +245,7 @@ public class H5mTest {
                 new String[]{"add","jq","to","demo","mem","{foo}:.mem"},
                 new String[]{"add","js","to","demo","fingerprint","({mem,cpu})=>({'fromMem':mem,'fromCpu':cpu})"},
                 new String[]{"list","demo","nodes"},
-                new String[]{"scan","demo"},
+                new String[]{"upload",folder.toString(),"to","demo"},
                 new String[]{"list","value","from","demo"}
         );
         results.forEach(result->{
@@ -275,7 +275,7 @@ public class H5mTest {
                 new String[]{"add","jq","to","demo","mem","{foo}:.mem"},
                 new String[]{"add","jq","to","demo","fingerprint","{mem,cpu}:."},
                 new String[]{"list","demo","nodes"},
-                new String[]{"scan","demo"},
+                new String[]{"upload",folder.toString(),"to","demo"},
                 new String[]{"list","value","from","demo"},
                 new String[]{"recalculate","demo"},
                 new String[]{"list","value","from","demo"}
