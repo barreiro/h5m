@@ -106,7 +106,9 @@ public class ListValue implements Callable<Integer> {
                     keyList.sort(String.CASE_INSENSITIVE_ORDER);
                     List<Function<JsonNode,Object>> accessors = keyList.stream().map(name-> (Function<JsonNode, Object>) json -> {
                         JsonNode found = json.get(name);
-                        if(found instanceof TextNode) {
+                        if(found == null){
+                            return "null";
+                        }else if(found instanceof TextNode) {
                             return ((TextNode) found).textValue();
                         }else if (found instanceof NumericNode){
                             return ((NumericNode) found).numberValue();
@@ -127,7 +129,9 @@ public class ListValue implements Callable<Integer> {
                     List.of("id", "data", "node.id"),
                     List.of(v -> v.id, v -> {
                         JsonNode found = v.data;
-                        if(found instanceof TextNode) {
+                        if(found == null){
+                            return "null";
+                        }else if(found instanceof TextNode) {
                             return ((TextNode) found).textValue();
                         }else if (found instanceof NumericNode){
                             return ((NumericNode) found).numberValue();

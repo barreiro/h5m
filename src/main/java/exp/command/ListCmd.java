@@ -319,7 +319,7 @@ public class ListCmd implements Callable<Integer> {
                     columnFormats[a] = "s";
                 }
                 int cellWidth = columnFormats[a] == null ? "NULL".length() : switch(columnFormats[a]){
-                    case "f" -> String.format("%.2f",c).length();
+                    case "f" -> String.format("%.2f",((Number)c).doubleValue()).length();
                     default -> c.toString().length();
                 };
                 if(cellWidth > columnWidths[a]){
