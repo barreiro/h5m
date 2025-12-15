@@ -36,6 +36,8 @@ public class FolderService {
     @Inject
     @Named("workExecutor")
     WorkQueueExecutor workExecutor;
+    @Inject
+    WorkService workService;
 
     @Transactional
     public long create(Folder folder){
@@ -142,7 +144,9 @@ public class FolderService {
         valueService.create(newValue);
         WorkQueue workQueue = workExecutor.getWorkQueue();
         folder.group.sources.forEach(source -> {
-            workQueue.addWork(new Work(source,source.sources,List.of(newValue)));
+            Work newWork = new Work(source,source.sources,List.of(newValue));
+            workService.create(newWork);
+            workQueue.addWork(newWork);
         });
     }
 }
