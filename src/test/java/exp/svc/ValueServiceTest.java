@@ -375,6 +375,75 @@ public class ValueServiceTest extends FreshDb {
         assertEquals(caValue02,found.get(1),found.toString());
 
     }
+    @Test
+    public void findMatchingFingerprintOrderBy_dataset_cousin() throws SystemException, NotSupportedException, JsonProcessingException, HeuristicRollbackException, HeuristicMixedException, RollbackException {
+        tm.begin();
+        Node rootNode = new RootNode();
+        rootNode.persist();
+        Node aNode = new JqNode("a",".a",List.of(rootNode));
+        aNode.persist();
+        Node bNode = new JqNode("b",".b[]",List.of(rootNode));
+        bNode.persist();
+        Node cNode = new JqNode("c",".c",List.of(bNode));
+        cNode.persist();
+        Node caNode = new JqNode("ca",".ca",List.of(cNode));
+        caNode.persist();
+        Node cbNode = new JqNode("cb",".cb",List.of(cNode));
+        cbNode.persist();
+
+        ObjectMapper objectMapper = new ObjectMapper();
+
+        Value rootValue01 = new Value(null,rootNode,new TextNode("root1"));
+        rootValue01.persist();
+        Value rootValue02 = new Value(null,rootNode,new TextNode("root2"));
+        rootValue02.persist();
+
+        Value aValue01 = new Value(null,aNode,new TextNode("a"));
+        aValue01.sources=List.of(rootValue01);
+        aValue01.persist();
+
+        Value aValue02 = new Value(null,aNode,new TextNode("a"));
+        aValue02.sources=List.of(rootValue02);
+        aValue02.persist();
+
+        Value bValue01 = new Value(null,bNode,new TextNode("b1"));
+        bValue01.sources=List.of(aValue01);
+        bValue01.persist();
+        Value bValue02 = new Value(null,bNode,new TextNode("b2"));
+        bValue02.sources=List.of(aValue02);
+        bValue02.persist();
+
+
+        Value cValue01 = new Value(null,cNode,new TextNode("c1"));
+        cValue01.sources=List.of(rootValue01);
+        cValue01.persist();
+        Value cValue02 = new Value(null,cNode,new TextNode("c2"));
+        cValue02.sources=List.of(rootValue02);
+        cValue02.persist();
+
+        Value caValue01 = new Value(null,caNode,new TextNode("ca1"));
+        caValue01.sources=List.of(cValue01);
+        caValue01.persist();
+        Value caValue02 = new Value(null,caNode,new TextNode("ca2"));
+        caValue02.sources=List.of(cValue02);
+        caValue02.persist();
+
+        tm.commit();
+
+
+        List<Value> found = valueService.findMatchingFingerprintOrderBy(caNode,aValue01,bNode);
+
+        System.out.println(found);
+
+        assertNotNull(found);
+        assertEquals(2,found.size(),found.toString());
+        assertTrue(found.contains(caValue01),found.toString());
+        assertTrue(found.contains(caValue02),found.toString());
+
+        assertEquals(caValue01,found.get(0),found.toString());
+        assertEquals(caValue02,found.get(1),found.toString());
+
+    }
 
     @Test
     public void persist_fixes_source_order() throws SystemException, NotSupportedException, HeuristicRollbackException, HeuristicMixedException, RollbackException {

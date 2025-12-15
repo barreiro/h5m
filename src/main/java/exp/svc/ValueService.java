@@ -159,6 +159,43 @@ public class ValueService {
                 .getResultList());
         return rtrn;
     }
+    @Transactional
+    public List<Value> findMatchingFingerprintOrderBy(Node source,Value fingerprint,Value before,int limit){
+        List<Value> rtrn = new ArrayList<>(em.createNativeQuery(
+                        """
+                        with recursive ancestor(vid) as (
+                            select v.id as vid 
+                                from value v where v.node_id = :nodeId and v.data = :data
+                            union 
+                            select v.id as vid 
+                                from value v join value_edge ve on v.id = ve.source_id join ancestor a on a.vid = ve.value_id
+                        ),
+                        sorter(vid,sortable) as (
+                            select v.id as vid,v.data as sortable 
+                                from value v where v.node_id = :sortId and v.data < :before
+                            union
+                            select v.id as vid, s.sortable as sortable
+                                from value v join value_edge ve on v.id = ve.source_id join sorter s on s.vid = ve.value_id
+                        ),
+                        descendant(vid,sortable) as (
+                           select v.id as vid, s.sortable as sortable
+                             from value v join sorter s on v.id = s.vid join ancestor a on v.id = a.vid join node n on n.id = v.node_id where n.type = 'root' --only the root values from ancestor with sorter
+                           union
+                           select v.id as vid, d.sortable as sortable
+                                 from value v join value_edge ve on v.id = ve.value_id join descendant d on d.vid = ve.source_id
+                        )                        
+                        select * from value v join descendant d on v.id=d.vid where v.node_id=:sourceId order by sortable desc limit :limit;
+                        """,Value.class)
+                .setParameter("nodeId", fingerprint.node.id)
+                .setParameter("data", fingerprint.data.toString())
+                .setParameter("sourceId", source.id)
+                .setParameter("sortId",before.node.id)
+                .setParameter("before",before.data.toString())
+                .setParameter("limit",limit)
+                .getResultList());
+        //reversed
+        return rtrn.reversed();
+    }
 
 
 
