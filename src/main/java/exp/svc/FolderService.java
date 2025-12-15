@@ -21,6 +21,7 @@ import org.hibernate.query.NativeQuery;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -143,8 +144,9 @@ public class FolderService {
         Value newValue = new Value(folder,folder.group.root,data);
         valueService.create(newValue);
         WorkQueue workQueue = workExecutor.getWorkQueue();
-        folder.group.sources.forEach(source -> {
-            Work newWork = new Work(source,source.sources,List.of(newValue));
+        //List.copyOf is a hack to get around ConcurrentModificationException that is likely due to using entity list and panache setSources
+        List.copyOf(folder.group.sources).forEach(source -> {
+            Work newWork = new Work(source,new ArrayList<>(source.sources),List.of(newValue));
             workService.create(newWork);
             workQueue.addWork(newWork);
         });

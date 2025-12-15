@@ -20,7 +20,7 @@ import java.util.*;
 public class Work  extends PanacheEntity implements Comparable<Work>{
 
     @BatchSize(size=10)
-    @ManyToMany(cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @ManyToMany(cascade = {CascadeType.PERSIST, CascadeType.MERGE}, fetch = FetchType.LAZY)
     @JoinTable(
             name="work_values",
             joinColumns = @JoinColumn(name = "work_id"),
@@ -29,7 +29,7 @@ public class Work  extends PanacheEntity implements Comparable<Work>{
     public List<Value> sourceValues;//multiple values could happen for cross test comparisons and
 
     @BatchSize(size=10)
-    @ManyToMany(cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @ManyToMany(cascade = {CascadeType.PERSIST, CascadeType.MERGE}, fetch = FetchType.LAZY)
     @JoinTable(
             name="work_nodes",
             joinColumns = @JoinColumn(name = "work_id"),
@@ -100,5 +100,10 @@ public class Work  extends PanacheEntity implements Comparable<Work>{
         } else {
             return 0;
         }
+    }
+
+    @Override
+    public String toString() {
+        return "Work<"+id+" activeNode="+activeNode+" retry="+retryCount+">";
     }
 }
