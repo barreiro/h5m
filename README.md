@@ -146,7 +146,12 @@ The existing Horreum entity model (Schemas, Labels, Extractors, Combination Func
 
 ### Nodes
 
-There will be different types of nodes for the different types of tasks. The PoC currently supports `jq` and `js` The Getting Started used `jq`
+There will be different types of nodes for the different types of tasks. The PoC currently supports the following nodes:
+* `jq` : use a [jq](https://jqlang.org/) filter on any number of input values to produce any number of output values
+* `js` : use a javascript (ecmascript) function on any number of input values to produce an output value[^1]
+* `jsonata`: use a [jsonata](https://jsonata.org/) operation on one input value to produce a single output value
+
+[^1]: might be able to use yielding iterator functions to produce multiple values, need to investigate
 
 ### WorkQueue
 
