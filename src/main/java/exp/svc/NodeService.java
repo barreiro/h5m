@@ -507,7 +507,8 @@ public class NodeService {
         args.add("--compact-output");
         args.add("--");//terminate argument processing
         //iterate sources to preserve order
-        node.sources.forEach(sourceNode -> {
+        //another CME while iterating an entity collection, who is mutating these nodes?
+        List.copyOf(node.sources).forEach(sourceNode -> {
             if(sourceValues.containsKey(sourceNode.name)){
                 try {
                     Value sourceValue = sourceValues.get(sourceNode.name);
@@ -535,7 +536,7 @@ public class NodeService {
             });
 
         }
-        Path destinationPath = Files.createTempFile(".bjq." + node.name+".",".out");//getOutPath().resolve(name + "." + startingOrdinal);
+        Path destinationPath = Files.createTempFile(".h5m." + node.name+".",".out");//getOutPath().resolve(name + "." + startingOrdinal);
         destinationPath.toFile().deleteOnExit();
         if(!JqNode.outputPath().toFile().exists()){
             JqNode.outputPath().toFile().mkdirs();
@@ -547,19 +548,24 @@ public class NodeService {
         //processBuilder.redirectErrorStream(true);
         Process p = processBuilder.start();
         String line = null;
+        StringBuilder err = new StringBuilder();
         try (BufferedReader reader = p.errorReader()) {
             while ((line = reader.readLine()) != null) {
                 //TODO handle error output from process
-                System.err.println("E: " + line);
+                err.append(line);
+                err.append(System.lineSeparator());
             }
         }
         try (BufferedReader reader = p.inputReader()) {
             while ((line = reader.readLine()) != null) {
-                System.err.println(line);
+                err.append(line);
+                err.append(System.lineSeparator());
                 //TODO handle output that somehow wasn't redirected
             }
         }
-
+        if(!err.isEmpty()){
+            System.err.println("Error processing "+node.id+" "+node.name+"\n  values: "+sourceValues.entrySet().stream().map(e->e.getKey()+"="+e.getValue().id).collect(Collectors.joining(", "))+"\n"+err);
+        }
         //TODO use onExit instead of blocking the thread?
         try {
             p.waitFor();
