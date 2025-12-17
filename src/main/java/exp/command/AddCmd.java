@@ -4,7 +4,18 @@ import picocli.CommandLine;
 
 import java.util.concurrent.Callable;
 
-@CommandLine.Command(name="add",description = "add entity",mixinStandardHelpOptions = true, subcommands = {AddFolder.class, AddJq.class, AddJs.class, AddJsonata.class})
+@CommandLine.Command(
+    name="add",
+    description = "add entity",
+    mixinStandardHelpOptions = true,
+    subcommands = {
+        AddFolder.class,
+        AddJq.class,
+        AddJs.class,
+        AddJsonata.class,
+        AddSqlJsonpath.class,
+    }
+)
 public class AddCmd implements Callable<Integer> {
     @Override
     public Integer call() throws Exception {

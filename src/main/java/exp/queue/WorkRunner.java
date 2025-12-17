@@ -5,7 +5,9 @@ import exp.entity.Work;
 import exp.svc.NodeService;
 import exp.svc.ValueService;
 import exp.svc.WorkService;
+import jakarta.enterprise.context.control.ActivateRequestContext;
 import jakarta.inject.Inject;
+import jakarta.transaction.TransactionScoped;
 import jakarta.transaction.Transactional;
 
 import java.util.List;
@@ -40,7 +42,6 @@ public class WorkRunner implements Runnable {
     }
 
     @Override
-    @Transactional
     public void run() {
         try {
             if(work.activeNode==null || work.sourceValues == null || work.sourceValues.isEmpty()){
@@ -49,14 +50,20 @@ public class WorkRunner implements Runnable {
             //looping over values works for Jq / Js nodes but what about cross test comparison
             //calculateValue should probably accept all sourceValues and leave it to the node function to decide
             List<Value> calculated = nodeService.calculateValues(work.activeNode,work.sourceValues);
-            for(Value v : work.sourceValues) {
-                valueService.deleteDescendantValues(v, work.activeNode);
+
+            //if the activeNode is a sqlpath then the entity is already persisted
+            boolean allPersisted = calculated.stream().allMatch(v->v.getId()!=null);
+            if(!allPersisted){
+                //TODO change drop to drop and replace to update data?
+                for(Value v : work.sourceValues) {
+                    valueService.deleteDescendantValues(v, work.activeNode);
+                }
+                //does this break descendant values or do we assume they will recalculate?
+                for(Value newValue : calculated){
+                    valueService.create(newValue);
+                }
             }
-            //TODO change drop to drop and replace to update data?
-            //does this break descendant values or do we assume they will recalculate?
-            for(Value newValue : calculated){
-                valueService.create(newValue);
-            }
+
             if(then!=null){
                 then.run();
             }

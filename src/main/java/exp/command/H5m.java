@@ -117,6 +117,7 @@ public class H5m implements QuarkusApplication {
         ObjectMapper objectMapper = new ObjectMapper();
         for( File f : todo){
             try {
+                System.out.println(f.getName());
                 JsonNode read = objectMapper.readTree(f);
                 if(read!=null){
                     folderService.upload(folder,f.getPath(),read);

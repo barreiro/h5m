@@ -15,6 +15,7 @@ import exp.entity.Value;
 import exp.entity.node.JqNode;
 import exp.entity.node.JsNode;
 import exp.entity.node.JsonataNode;
+import exp.entity.node.SqlJsonpathNode;
 import exp.pasted.ProxyJacksonArray;
 import exp.pasted.ProxyJacksonObject;
 import io.hyperfoil.tools.yaup.StringUtil;
@@ -29,6 +30,10 @@ import org.graalvm.polyglot.Engine;
 import org.graalvm.polyglot.PolyglotException;
 import org.graalvm.polyglot.proxy.Proxy;
 import org.graalvm.polyglot.proxy.ProxyExecutable;
+import org.hibernate.JDBCException;
+import org.hibernate.Session;
+import org.hibernate.exception.GenericJDBCException;
+import org.hibernate.query.NativeQuery;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -36,6 +41,8 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -93,7 +100,6 @@ public class NodeService {
      */
     public List<Map<String,Value>> calculateSourceValuePermutations(Node node, Value root) {
         List<Map<String,Value>> rtrn = new ArrayList<>();
-
         Map<String,List<Value>> nodeValues = node.sources.stream()
                 .map(n -> {
                     List<Value> found = valueService.getDescendantValues(root,n);
@@ -198,6 +204,7 @@ public class NodeService {
             case "ecma":
             case "jq":
             case "nata":
+            case "sql":
                 for(int vIdx=0; vIdx<roots.size(); vIdx++){
                     Value root =  roots.get(vIdx);
                     try {
@@ -217,11 +224,13 @@ public class NodeService {
         return rtrn;
     }
 
+
     public List<Value> calculateNodeValues(Node node,Map<String,Value> sourceValues,int startingOrdinal) throws IOException {
         return switch(node.type){
             case "jq" -> calculateJqValues((JqNode)node,sourceValues,startingOrdinal+1);
             case "ecma" -> calculateJsValues((JsNode)node,sourceValues,startingOrdinal+1);
             case "nata" -> calculateJsonataValues((JsonataNode)node,sourceValues,startingOrdinal+1);
+            case "sql" -> calculateSqlJsonpathValues((SqlJsonpathNode)node,sourceValues,startingOrdinal+1);
             default -> {
                 System.err.println("Unknown node type: "+node.type);
                 yield Collections.emptyList();
@@ -229,6 +238,53 @@ public class NodeService {
         };
     }
 
+    @Transactional
+    public List<Value> calculateSqlJsonpathValues(SqlJsonpathNode node, Map<String,Value> sourceValues, int startingOrdinal) throws IOException {
+        List<Value> rtrn = new ArrayList<>();
+        if(sourceValues.isEmpty()){//end early when there isn't input
+            return rtrn;
+        }
+
+        if(sourceValues.size()>1 || node.sources.size()>1){
+            System.err.println("sql jsonpath only supports one input at a time");
+            return Collections.emptyList();
+        }
+
+        Value input = sourceValues.get(node.sources.getFirst().name);
+
+        Value tempV = new Value(null,node,null);
+        tempV.sources=List.of(input);
+        tempV.idx=startingOrdinal;
+        Value newValue = valueService.create(tempV);
+        Session session = em.unwrap(Session.class);
+        session.doWork(conn -> {
+            try(PreparedStatement statement = conn.prepareStatement(
+            """
+            update value set data = json_extract( (select data from value where id = ?) , ? ) 
+            where id = ?
+            """)) {
+                statement.setLong(1,input.id);
+                statement.setString(2,node.operation);
+                statement.setLong(3,newValue.id);
+                statement.execute();
+            }catch (Exception e){
+                System.err.println(e.getMessage());
+            }
+            try(PreparedStatement statement = conn.prepareStatement("""
+            select id from value where data is not null and id = ?
+            """)){
+                statement.setLong(1,newValue.id);
+                ResultSet rs = statement.executeQuery();
+                if(rs.next()){
+                    rtrn.add(newValue);
+                }else{
+                    newValue.delete();
+                }
+                rs.close();
+            }
+        });
+        return rtrn;
+    }
     //jsonata cannot operate on multiple inputs at once so source
     public List<Value> calculateJsonataValues(JsonataNode node,Map<String,Value> sourceValues,int startingOrdinal) throws IOException {
         if(sourceValues.size()>1 || node.sources.size()>1){

@@ -10,6 +10,7 @@ import exp.entity.Value;
 import exp.entity.node.JqNode;
 import exp.entity.node.JsNode;
 import exp.entity.node.RootNode;
+import exp.entity.node.SqlJsonpathNode;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
 import jakarta.transaction.*;
@@ -76,6 +77,7 @@ public class NodeServiceTest extends FreshDb {
     }
 
 
+
     @Test
     public void calculateJsValue_no_source() throws IOException {
         ObjectMapper mapper = new ObjectMapper();
@@ -112,6 +114,37 @@ public class NodeServiceTest extends FreshDb {
         JsonNode data = first.data;
         assertNotNull(data);
         assertEquals("Hi, Bright",data.asText());
+    }
+
+    @Test
+    public void calculateSqlJsonpathValues() throws IOException, SystemException, NotSupportedException, HeuristicRollbackException, HeuristicMixedException, RollbackException {
+        ObjectMapper mapper = new ObjectMapper();
+        tm.begin();
+        RootNode rootNode = new RootNode();
+        rootNode.persist();
+        SqlJsonpathNode node = new SqlJsonpathNode("sql","$.buz",List.of(rootNode));//should be a different type of node?
+        node.persist();
+        Value v1 = new Value();
+        v1.data = mapper.readTree("""
+                {
+                  "foo": [ { "key": "one"}, { "key" : "two" } ],
+                  "bar": [ { "k": "uno" }, { "k": "dos"}, { "k" : "tres"} ],
+                  "biz": "cat",
+                  "buz": "dog"
+                }
+                """);
+        v1.node=rootNode;
+        v1.persist();
+
+        tm.commit();
+
+        Map<String,Value> sourceValueMap = new HashMap<>();
+        sourceValueMap.put(rootNode.name,v1);
+
+        List<Value> calculated = nodeService.calculateSqlJsonpathValues(node,sourceValueMap,0);
+        assertNotNull(calculated);
+        assertEquals(1,calculated.size());
+
     }
 
     @Test

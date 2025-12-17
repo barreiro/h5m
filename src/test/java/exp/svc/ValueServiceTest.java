@@ -91,7 +91,6 @@ public class ValueServiceTest extends FreshDb {
 
         List<Value> found = valueService.getValues(rootNode);
         assertEquals(1, found.size());
-        System.out.println(found.size());
         for(Value v : found){
             assertThrows(LazyInitializationException.class, () -> {
                 assertNull(v.data); // Access the lazy-loaded attribute
@@ -294,8 +293,6 @@ public class ValueServiceTest extends FreshDb {
 
         List<Value> found = valueService.findMatchingFingerprintOrderBy(cNode,aValue01,bNode);
 
-        System.out.println(found);
-
         assertNotNull(found);
         assertEquals(2,found.size(),found.toString());
         assertTrue(found.contains(cValue01),found.toString());
@@ -364,8 +361,6 @@ public class ValueServiceTest extends FreshDb {
 
         List<Value> found = valueService.findMatchingFingerprintOrderBy(caNode,aValue01,bNode);
 
-        System.out.println(found);
-
         assertNotNull(found);
         assertEquals(2,found.size(),found.toString());
         assertTrue(found.contains(caValue01),found.toString());
@@ -432,8 +427,6 @@ public class ValueServiceTest extends FreshDb {
 
 
         List<Value> found = valueService.findMatchingFingerprintOrderBy(caNode,aValue01,bNode);
-
-        System.out.println(found);
 
         assertNotNull(found);
         assertEquals(2,found.size(),found.toString());
