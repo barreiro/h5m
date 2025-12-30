@@ -1,14 +1,12 @@
 package exp.queue;
 
-import exp.entity.Node;
-import exp.entity.Value;
 import exp.entity.Work;
-import exp.svc.NodeGroupService;
 import exp.svc.NodeService;
 import exp.svc.ValueService;
 import exp.svc.WorkService;
 import io.vertx.core.impl.ConcurrentHashSet;
-import jakarta.transaction.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.concurrent.BlockingQueue;
@@ -17,9 +15,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.Consumer;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 
 /*
@@ -31,11 +26,12 @@ import java.util.stream.Stream;
  */
 public class WorkQueue implements BlockingQueue<Runnable> {
 
+    private static final Logger log = LoggerFactory.getLogger(WorkQueue.class);
     //TODO using counters blocks work on different values, change to set of active work
     //private Counters<Node> counters = new Counters<>();
     private Set<Work> activeWork = new ConcurrentHashSet<>();
+    private Set<Work> pendingWork = new ConcurrentHashSet<>();
 
-    private final AtomicInteger count = new AtomicInteger();
     private final ReentrantLock takeLock = new ReentrantLock();
     private final Condition notEmpty = takeLock.newCondition();
     private final ReentrantLock putLock = new ReentrantLock();
@@ -137,22 +133,23 @@ public class WorkQueue implements BlockingQueue<Runnable> {
             if (found != null) {
                 Runnable removed = runnables.remove(idx - 1); //index of found
                 assert !runnables.contains(found);
+                if(found instanceof WorkRunner workRunner){
+                    activeWork.add(workRunner.work);
+                    pendingWork.remove(workRunner.work);
+                }
             }
         }finally {
             fullyUnlock();
-        }
-        if(found !=null && found instanceof WorkRunner){
-            activeWork.add(((WorkRunner) found).work);
         }
         return found;
     }
 
     /**
-     * get the runables that the input runnale must follow
+     * get the runables that the input runnable must follow
      * @param runnable
      * @return
      */
-    public List<Runnable> getRequiredPrecedingRunables(Runnable runnable){
+    public List<Runnable> getRequiredPrecedingRunnables(Runnable runnable){
         int index = runnables.indexOf(runnable);
         if(runnable instanceof WorkRunner){
             WorkRunner workRunner = (WorkRunner) runnable;
@@ -166,13 +163,18 @@ public class WorkQueue implements BlockingQueue<Runnable> {
         }
     }
     private void sort(){
-        runnables = KahnDagSort.sort(runnables,this::getRequiredPrecedingRunables);
+        runnables = KahnDagSort.sort(runnables,this::getRequiredPrecedingRunnables);
     }
     public void addWorks(Collection<Work> works){
         putLock.lock();
         try {
-            works.forEach(w->runnables.add(new WorkRunner(w,this,nodeService,valueService,workService)));
-            int c = count.getAndAdd(works.size());
+            int c = runnables.size();
+            works.forEach(w->{
+                    if(!isPending(w)){
+                        pendingWork.add(w);
+                        runnables.add(new WorkRunner(w, this, nodeService, valueService, workService));
+                    }
+            });
             sort();
             if(c == 0){
                 signalNotEmpty();
@@ -184,12 +186,32 @@ public class WorkQueue implements BlockingQueue<Runnable> {
     public void addWork(Work work) {
         add(new WorkRunner(work,this,nodeService,valueService,workService));
     }
+    public boolean hasWork(Work work){
+        return isPending(work) || isActive(work);
+        //return runnables.stream().anyMatch(v->v instanceof WorkRunner && work.equals(((WorkRunner) v).work));
+    }
+    public boolean isPending(Work work){
+        return pendingWork.contains(work);
+    }
+    public boolean isActive(Work work){
+        return activeWork.contains(work);
+    }
+
     @Override
     public boolean add(Runnable runnable) {
+        if(runnable instanceof WorkRunner workRunner){
+            //reject new work that is already pending
+            //do NOT reject new work if it matches an active work because it could be a retry re-queue
+            if(isPending(workRunner.work)){
+                return false;//reject new work that is already pending
+            }else {
+                pendingWork.add(workRunner.work);
+            }
+        }
         putLock.lock();
         try {
+            int c = runnables.size();
             runnables.add(runnable);
-            int c = count.getAndIncrement();
             if(runnable instanceof WorkRunner){
                 sort();
             }
@@ -203,9 +225,6 @@ public class WorkQueue implements BlockingQueue<Runnable> {
         return true;
     }
 
-    public boolean hasWork(Work work){
-        return runnables.stream().anyMatch(v->v instanceof WorkRunner && work.equals(((WorkRunner) v).work));
-    }
 
     @Override
     public boolean offer(Runnable runnable) {
@@ -224,19 +243,19 @@ public class WorkQueue implements BlockingQueue<Runnable> {
 
     @Override
     public Runnable poll() {
-        if(count.get()==0){
+        if(runnables.size()==0){
             return null;
         }
         takeLock.lock();
         try{
-            if(count.get()==0){
+            if(runnables.isEmpty()){
                 return null;
             }
             Runnable found = removeFirstUnblocked();
             if(found == null){
                 return null;
             }
-            int c = count.getAndDecrement();
+            int c = runnables.size();
             if(c > 1){
                 notEmpty.signal();
             }
@@ -257,12 +276,12 @@ public class WorkQueue implements BlockingQueue<Runnable> {
 
     @Override
     public Runnable peek() {
-        if(count.get()==0){
+        if(runnables.isEmpty()){
             return null;
         }
         takeLock.lock();
         try{
-            return count.get() > 0 ? runnables.get(0) : null;
+            return !runnables.isEmpty() ? runnables.getFirst() : null;
         }finally {
             takeLock.unlock();
         }
@@ -272,9 +291,16 @@ public class WorkQueue implements BlockingQueue<Runnable> {
     public void put(Runnable runnable) throws InterruptedException {
         putLock.lock();
         try{
+            if(runnable instanceof WorkRunner workRunner){
+                if(isPending(workRunner.work)){
+                    return;
+                }else {
+                    pendingWork.add(workRunner.work);
+                }
+            }
+            int c = runnables.size();
             runnables.add(runnable);
-            int c = count.incrementAndGet();
-            if(c ==0){
+            if(c!=0){
                 signalNotEmpty();
             }
         }finally {
@@ -293,7 +319,7 @@ public class WorkQueue implements BlockingQueue<Runnable> {
     public Runnable take() throws InterruptedException {
         takeLock.lockInterruptibly();
         try {
-            while (count.get() == 0) {
+            while (runnables.isEmpty()) {
                 notEmpty.await();
             }
             Runnable work = null;
@@ -303,8 +329,8 @@ public class WorkQueue implements BlockingQueue<Runnable> {
                     notEmpty.await();
                 }
             } while (work == null);
-            int c = count.getAndDecrement();
-            if (c > 1) {
+            int c = runnables.size();
+            if (c > 0) {
                 notEmpty.signal();
             }
             return work;
@@ -318,7 +344,7 @@ public class WorkQueue implements BlockingQueue<Runnable> {
         long nanos = unit.toNanos(timeout);
         takeLock.lockInterruptibly();
         try {
-            while(count.get()==0){
+            while(runnables.isEmpty()){
                 if (nanos <= 0L){
                     return null;
                 }
@@ -334,8 +360,8 @@ public class WorkQueue implements BlockingQueue<Runnable> {
                     nanos = notEmpty.awaitNanos(nanos);
                 }
             }
-            int c = count.getAndDecrement();
-            if( c > 1){
+            int c = runnables.size();
+            if( c > 0){
                 notEmpty.signal();
             }
             return work;
@@ -346,7 +372,7 @@ public class WorkQueue implements BlockingQueue<Runnable> {
 
     @Override
     public int remainingCapacity() {
-        return Integer.MAX_VALUE - count.get();
+        return Integer.MAX_VALUE;
     }
 
     @Override
@@ -354,8 +380,14 @@ public class WorkQueue implements BlockingQueue<Runnable> {
         boolean rtrn = false;
         fullyLock();
         try{
+            if(o instanceof WorkRunner workRunner){
+                pendingWork.remove(workRunner.work);
+            }
             rtrn = runnables.remove(o);
-            int c = count.getAndDecrement();
+            int c = runnables.size();
+            if(c>0){
+                notEmpty.signal();
+            }
         } finally {
             fullyUnlock();
         }
@@ -371,8 +403,13 @@ public class WorkQueue implements BlockingQueue<Runnable> {
     public boolean addAll(Collection<? extends Runnable> c) {
         fullyLock();
         try {
-            runnables.addAll(c);
-            count.getAndAdd(c.size());
+            for(Runnable r : runnables){
+                if( r instanceof WorkRunner workRunner && isPending(workRunner.work)){
+                    //do not add something already in queue
+                }else{
+                    runnables.add(r);
+                }
+            }
             sort();
         }finally {
             fullyUnlock();
@@ -391,7 +428,6 @@ public class WorkQueue implements BlockingQueue<Runnable> {
         fullyLock();
         try {
             runnables.retainAll(c);
-            count.getAndAdd(c.size());
             sort();
         }finally {
             fullyUnlock();

@@ -9,6 +9,7 @@ import jakarta.inject.Inject;
 import jakarta.inject.Named;
 import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
+import org.eclipse.microprofile.context.ManagedExecutor;
 
 import java.util.List;
 
@@ -18,6 +19,7 @@ public class WorkService {
     @Inject
     EntityManager em;
 
+    @Inject
     @Named("workExecutor")
     WorkQueueExecutor workExecutor;
 

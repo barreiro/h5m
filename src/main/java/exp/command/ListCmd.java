@@ -1,16 +1,13 @@
 package exp.command;
 
-import com.fasterxml.jackson.databind.node.DoubleNode;
 import com.fasterxml.jackson.databind.node.NumericNode;
 import com.fasterxml.jackson.databind.node.TextNode;
-import com.jayway.jsonpath.internal.filter.ValueNodes;
 import io.hyperfoil.tools.yaup.AsciiArt;
 import picocli.CommandLine;
 
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.function.Function;
-import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 @CommandLine.Command(name="list", aliases = {"show","ls"}, description = "list entities", mixinStandardHelpOptions = true, subcommands={ListFolder.class, ListNode.class, ListValue.class})
@@ -334,19 +331,6 @@ public class ListCmd implements Callable<Integer> {
                 columnFormats[i] = "s";
             }
         }
-//        int widthSum = IntStream.of(columnWidths).sum();
-//        if(widthSum > maxWidth-3*(columnCount-1) ){
-//            for(int i=0; i<columnCount; i++){
-//                columnWidths[i] = Math.floorDiv(columnWidths[i],maxWidth-3*(columnCount-1));
-//            }
-//            for(Object[] row : rows){
-//                for(int i=0; i<columnCount; i++){
-//                    if(columnFormats[i].equals("s") && row[i].toString().length() > columnWidths[i]){
-//                        row[i] = row[i].toString().substring(0,columnWidths[i]-1)+ AsciiArt.ELLIPSIS;
-//                    }
-//                }
-//            }
-//        }
         StringBuilder topBorderFormat = new StringBuilder();
         StringBuilder bottomBorderFormat = new StringBuilder();
         StringBuilder headerFormat = new StringBuilder();
@@ -438,9 +422,6 @@ public class ListCmd implements Callable<Integer> {
                 rtrn.append(row.toString());
                 rtrn.append(System.lineSeparator());
             }
-            //single row version
-            //rtrn.append(String.format(headerFormat.toString(), headers.toArray()));
-            //border under the header row
             if(outsideBorder){
                 rtrn.append(
                         String.format(

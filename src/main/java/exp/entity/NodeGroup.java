@@ -6,6 +6,8 @@ import io.quarkus.hibernate.orm.panache.PanacheEntity;
 import jakarta.persistence.*;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -24,6 +26,7 @@ public class NodeGroup extends PanacheEntity {
 
     @OneToMany(cascade = { CascadeType.PERSIST,
             CascadeType.MERGE }, fetch = FetchType.LAZY, orphanRemoval = false, mappedBy = "group")
+    //@OnDelete(action = OnDeleteAction.CASCADE)
     public List<@NotNull @ValidNode Node> sources;
 
     public NodeGroup(){
@@ -35,6 +38,11 @@ public class NodeGroup extends PanacheEntity {
     public NodeGroup(String name){
         this();
         this.name = name;
+    }
+
+
+    public List<Node> getTopLevelNodes(){
+        return sources.stream().filter(node -> node.sources.size() == 1 && node.sources.contains(root)).collect(Collectors.toList());
     }
 
     /**

@@ -140,7 +140,28 @@ public abstract class Node extends PanacheEntity implements Comparable<Node> {
 
     @Override
     public String toString(){
-        return getClass().getSimpleName()+"< "+name+", "+operation+", "+id+", ["+sources.stream().map(s->""+s.id).collect(Collectors.joining(" "))+"]>";
+        return getClass().getSimpleName()+"< name="+name+", op="+operation+", id="+id+", source.ids=["+sources.stream().map(s->""+s.id).collect(Collectors.joining(" "))+"]>";
+    }
+
+    @Override
+    public boolean equals(Object o){
+        if(o instanceof Node){
+            Node n = (Node)o;
+            if(id == null && n.id == null){
+                //TODO use sources in equality check?
+                return Objects.equals(name,n.name) && Objects.equals(operation,n.operation);
+            } else if (id != null && n.id != null){
+                return n.id.equals(id);
+            } else { //one is persisted and the other is not
+                return false;
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode(){
+        return Objects.hash(id, name, operation, List.copyOf(sources));
     }
 
     public boolean dependsOn(Node source){

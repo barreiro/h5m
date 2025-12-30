@@ -12,10 +12,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.*;
 import exp.entity.Node;
 import exp.entity.Value;
-import exp.entity.node.JqNode;
-import exp.entity.node.JsNode;
-import exp.entity.node.JsonataNode;
-import exp.entity.node.SqlJsonpathNode;
+import exp.entity.node.*;
+import exp.pasted.JsonBinaryType;
 import exp.pasted.ProxyJacksonArray;
 import exp.pasted.ProxyJacksonObject;
 import io.hyperfoil.tools.yaup.StringUtil;
@@ -25,6 +23,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.graalvm.polyglot.Context;
 import org.graalvm.polyglot.Engine;
 import org.graalvm.polyglot.PolyglotException;
@@ -55,17 +54,21 @@ public class NodeService {
     @Inject
     ValueService valueService;
 
+    @ConfigProperty(name="quarkus.datasource.db-kind")
+    String dbKind;
+
+
     @Transactional
-    public long create(Node node){
+    public Node create(Node node){
 
         if(!node.isPersistent()){
             node.id = null;
             Node merged = em.merge(node);
             em.flush();
             node.id = merged.id;
-            return merged.id;
+            return merged;
         }
-        return node.id;
+        return node;
     }
 
     @Transactional
@@ -84,8 +87,18 @@ public class NodeService {
     }
 
     @Transactional
+    public List<Node> getDependentNodes(Node n){
+        List<Node> rtrn = Node.list("SELECT DISTINCT n FROM Node n JOIN n.sources s WHERE s.id = ?1",n.id);
+        rtrn.forEach(r->r.hashCode());//lazy hack
+        return rtrn;
+    }
+
+
+    @Transactional
     public void delete(Node node){
         if(node.id!=null) {
+            //remove nodes that depend on this or just remove the reference?
+            getDependentNodes(node).forEach(this::delete);
             Node.deleteById(node.id);
         }
     }
@@ -221,6 +234,7 @@ public class NodeService {
             default:
                 System.err.println("Unknown node type: " + node.type);
         }
+        rtrn.forEach(Value::getPath);//forcing entities to be loaded is so dirty
         return rtrn;
     }
 
@@ -259,10 +273,20 @@ public class NodeService {
         Session session = em.unwrap(Session.class);
         session.doWork(conn -> {
             try(PreparedStatement statement = conn.prepareStatement(
-            """
-            update value set data = json_extract( (select data from value where id = ?) , ? ) 
-            where id = ?
-            """)) {
+                    switch(dbKind) {
+                        case "sqlite" ->
+                                """
+                                update value set data = json_extract( (select data from value where id = ?) , ? ) 
+                                where id = ?
+                                """;
+                        case "postgresql" ->
+                                """
+                                update value set data = jsonb_path_query_first( (select data from value where id = ?) , ?::jsonpath )
+                                where id = ?
+                                """;
+                        default -> "";
+                    }
+            )) {
                 statement.setLong(1,input.id);
                 statement.setString(2,node.operation);
                 statement.setLong(3,newValue.id);
@@ -271,11 +295,15 @@ public class NodeService {
                 System.err.println(e.getMessage());
             }
             try(PreparedStatement statement = conn.prepareStatement("""
-            select id from value where data is not null and id = ?
+            select data from value where data is not null and id = ?
             """)){
                 statement.setLong(1,newValue.id);
                 ResultSet rs = statement.executeQuery();
                 if(rs.next()){
+                    JsonBinaryType jsonBinaryType = new JsonBinaryType();
+                    JsonNode data = jsonBinaryType.nullSafeGet(rs,1,null,null);
+                    newValue.data = data;
+                    newValue.hashCode();//lazy
                     rtrn.add(newValue);
                 }else{
                     newValue.delete();
@@ -304,7 +332,7 @@ public class NodeService {
             newValue.idx = startingOrdinal+1;
             newValue.node = node;
             newValue.data = result;
-            newValue.sources = node.sources.stream().map(n -> sourceValues.get(n.name)).collect(Collectors.toList());
+            newValue.sources = node.sources.stream().filter(n->sourceValues.containsKey(n.name)).map(n -> sourceValues.get(n.name)).collect(Collectors.toList());
             return List.of(newValue);
 
         } catch (ParseException e) {
@@ -389,7 +417,7 @@ public class NodeService {
             newValue.idx = startingOrdinal+1;
             newValue.node = node;
             newValue.data = data;
-            newValue.sources = node.sources.stream().map(n -> sourceValues.get(n.name)).collect(Collectors.toList());
+            newValue.sources = node.sources.stream().filter(n->sourceValues.containsKey(n.name)).map(n -> sourceValues.get(n.name)).collect(Collectors.toList());
             return List.of(newValue);
 
         }else {
@@ -529,7 +557,7 @@ public class NodeService {
 
 
 
-    public List<Value> calculateFpValues(JqNode node,Map<String,Value> sourceValues,int startingOrdinal) throws IOException {
+    public List<Value> calculateFpValues(FingerprintNode node, Map<String,Value> sourceValues, int startingOrdinal) throws IOException {
         HashFactory hashFactory = new HashFactory();
 
         String glob = node.sources.stream().map(source->sourceValues.containsKey(source.name) ? sourceValues.get(source.name).data.toString() : "").collect(Collectors.joining(""));
@@ -538,7 +566,7 @@ public class NodeService {
         newValue.idx = startingOrdinal+1;
         newValue.node = node;
         newValue.data = new TextNode(hash);
-        newValue.sources = node.sources.stream().map(source->sourceValues.get(source.name)).filter(Objects::nonNull).toList();
+        newValue.sources = node.sources.stream().filter(n->sourceValues.containsKey(n.name)).map(n -> sourceValues.get(n.name)).collect(Collectors.toList());
         return List.of(newValue);
     }
     public List<Value> calculateJqValues(JqNode node,Map<String,Value> sourceValues,int startingOrdinal) throws IOException {
@@ -594,9 +622,6 @@ public class NodeService {
         }
         Path destinationPath = Files.createTempFile(".h5m." + node.name+".",".out");//getOutPath().resolve(name + "." + startingOrdinal);
         destinationPath.toFile().deleteOnExit();
-        if(!JqNode.outputPath().toFile().exists()){
-            JqNode.outputPath().toFile().mkdirs();
-        }
         ProcessBuilder processBuilder = new ProcessBuilder(args);
         processBuilder.environment().put("TERM", "xterm");
         //processBuilder.directory(getJqPath().resolve(name).toFile()); //not yet creating the working directory
@@ -646,7 +671,7 @@ public class NodeService {
                     newValue.idx = order++;
                     newValue.node = node;
                     newValue.data = jsNode;
-                    newValue.sources = node.sources.stream().map(n -> sourceValues.get(n.name)).collect(Collectors.toList());
+                    newValue.sources = node.sources.stream().filter(n->sourceValues.containsKey(n.name)).map(n -> sourceValues.get(n.name)).collect(Collectors.toList());
                     rtrn.add(newValue);
                     jp.nextToken();
                 }

@@ -6,6 +6,7 @@ import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.Immutable;
 
 import java.util.*;
+import java.util.stream.IntStream;
 
 @Entity
 @Table(
@@ -89,6 +90,42 @@ public class Work  extends PanacheEntity implements Comparable<Work>{
     public List<Work> getAncestorWorks(List<Work> works){
         List<Work> rtrn = works.stream().filter(this::dependsOn).toList();
         return rtrn;
+    }
+
+
+    @Override
+    public boolean equals(Object o){
+        if(o instanceof Work){
+            Work work = (Work)o;
+            boolean sameId = Objects.equals(this.id, work.id);
+            if(!sameId){
+                return false;
+            }
+            boolean sameNode = Objects.equals(this.activeNode, work.activeNode);
+            if(!sameNode){
+                return false;
+            }
+            boolean sameSources = activeNode!=null ||
+                (this.sourceNodes.size()==work.sourceNodes.size() &&
+                    IntStream.range(0,sourceNodes.size()).allMatch(i->sourceNodes.get(i).equals(work.sourceNodes.get(i)))
+                );
+            if(!sameSources){
+                return false;
+            }
+            boolean sameValues = this.sourceValues.size()==work.sourceValues.size() && (
+                    IntStream.range(0,sourceValues.size()).allMatch(i->sourceValues.get(i).equals(work.sourceValues.get(i)))
+                    );
+            return sameValues;
+        }
+        return false;
+    }
+    @Override
+    public int hashCode(){
+        List<Object> param = new ArrayList<>();
+        param.add(activeNode);
+        param.addAll(sourceNodes);
+        param.addAll(sourceValues);
+        return Objects.hash(param.toArray());
     }
 
     @Override

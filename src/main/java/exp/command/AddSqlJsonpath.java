@@ -53,10 +53,7 @@ public class AddSqlJsonpath implements Callable<Integer> {
         if(node.sources.isEmpty()){
             node.sources.add(foundGroup.root);
         }
-        long response = nodeService.create(node);
-        if(response < 0 ){
-            return 1;
-        }
+        nodeService.create(node);
         return 0;
     }
 }

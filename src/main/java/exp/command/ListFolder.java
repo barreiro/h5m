@@ -25,6 +25,5 @@ public class ListFolder implements Runnable {
         List<String> names = new ArrayList<>(folderCounts.keySet());
         names.sort(String.CASE_INSENSITIVE_ORDER);
         System.out.println(ListCmd.table(80,names,List.of("name","uploads"), List.of(Object::toString, folderCounts::get)));
-        //folderService.list().forEach(System.out::println);
     }
 }

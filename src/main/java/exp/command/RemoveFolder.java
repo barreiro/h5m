@@ -20,7 +20,7 @@ public class RemoveFolder implements Callable<Integer> {
     public Integer call() throws Exception {
         Folder found = folderService.byName(name);
         if(found == null){
-            System.out.println("Folder "+name+" not found");
+            System.err.println("Folder "+name+" not found");
         }else{
             folderService.delete(found);
         }

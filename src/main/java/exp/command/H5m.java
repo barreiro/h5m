@@ -3,38 +3,26 @@ package exp.command;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import exp.entity.Folder;
-import exp.entity.Node;
-import exp.entity.NodeGroup;
-import exp.entity.node.JqNode;
 import exp.queue.WorkQueueExecutor;
 import exp.svc.*;
-import io.hyperfoil.tools.yaup.AsciiArt;
 import io.hyperfoil.tools.yaup.json.Json;
 import io.quarkus.picocli.runtime.annotations.TopCommand;
-import io.quarkus.runtime.Quarkus;
 import io.quarkus.runtime.QuarkusApplication;
 import io.quarkus.runtime.annotations.QuarkusMain;
 import jakarta.enterprise.inject.spi.CDI;
 import jakarta.inject.Inject;
 import jakarta.inject.Named;
-import jakarta.transaction.Transactional;
-import org.hibernate.jdbc.WorkExecutor;
 import picocli.AutoComplete;
 import picocli.CommandLine;
-import picocli.CommandLine.Command;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.List;
-import java.util.Scanner;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 @QuarkusMain
 @TopCommand
-//@Command(name = "", mixinStandardHelpOptions = true)
 @CommandLine.Command(name="", mixinStandardHelpOptions = true,separator = " ", subcommands={CommandLine.HelpCommand.class, AutoComplete.GenerateCompletion.class, ListCmd.class, AddCmd.class, RemoveCmd.class})
 public class H5m implements QuarkusApplication {
 
@@ -117,7 +105,9 @@ public class H5m implements QuarkusApplication {
         ObjectMapper objectMapper = new ObjectMapper();
         for( File f : todo){
             try {
-                System.out.println(f.getName());
+                if( todo.size()>1) {
+                    System.out.println(f.getName());
+                }
                 JsonNode read = objectMapper.readTree(f);
                 if(read!=null){
                     folderService.upload(folder,f.getPath(),read);

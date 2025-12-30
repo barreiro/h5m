@@ -69,7 +69,7 @@ public class AddJs implements Callable<Integer> {
         if(node.sources.isEmpty()){
             node.sources.add(foundGroup.root);
         }
-        long response = nodeService.create(node);
+        nodeService.create(node);
 
 
         return 0;

@@ -24,15 +24,11 @@ import java.util.stream.Collectors;
 @Entity
 @DiscriminatorValue("jq")
 public class JqNode extends Node {
-
-    public static String JQ_PATH = ".jq_filter";
-    public static String OUT_PATH = ".jq_output";
-
     public static String SOURCE_PREFIX="{";
     public static String SOURCE_SUFFIX="}:";
     public static String SOURCE_SEPARATOR=",";
 
-    //{ sourceFqdn, ...}$...
+    //{ sourceFqdn, ...}:...
     public static JqNode parse(String name, String input, Function<String,List<Node>> nodeFn){
         if(input==null || input.isBlank()){
             System.err.println("missing jq node input");
@@ -70,7 +66,6 @@ public class JqNode extends Node {
         return rtrn;
     }
 
-
     public JqNode(){
         super();
         this.type="jq";//setting type because detached entities might not have this field
@@ -104,14 +99,6 @@ public class JqNode extends Node {
         }
         return basePath;
     }
-    public static Path jqPath(){
-        return ensurePath(JQ_PATH);
-    }
-    public static Path outputPath(){
-        return ensurePath(OUT_PATH);
-    }
-
-
     //detect if the jq command is processing the inputs together
     public static boolean isNullInput(String command){
         return command.matches("(?<!\\.)[^.]*inputs.*");//^(?<!\.)inputs

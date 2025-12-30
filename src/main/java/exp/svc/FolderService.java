@@ -16,6 +16,7 @@ import jakarta.inject.Inject;
 import jakarta.inject.Named;
 import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
+import org.eclipse.microprofile.context.ManagedExecutor;
 import org.hibernate.query.NativeQuery;
 
 import java.io.File;
@@ -37,6 +38,7 @@ public class FolderService {
     @Inject
     @Named("workExecutor")
     WorkQueueExecutor workExecutor;
+
     @Inject
     WorkService workService;
 
@@ -86,7 +88,6 @@ public class FolderService {
         for( Object[] obj : found ){
             rtrn.put((String) obj[0], (Integer) obj[1]);
         }
-
         return rtrn;
     }
 
@@ -128,10 +129,12 @@ public class FolderService {
         Node root = folder.group.root;
         List<Value> rootValues = valueService.getValues(root);
         for(Value rootValue: rootValues){
-            folder.group.sources.forEach(source -> {
-                workExecutor.getWorkQueue().addWork(
-                        new Work(source,new ArrayList<>(source.sources),List.of(rootValue))
-                );
+            List.copyOf(folder.group.sources).forEach(source -> {
+                Work newWork = new Work(source,new ArrayList<>(source.sources),List.of(rootValue));
+                workService.create(newWork);
+                //WorkRunner runner = new WorkRunner(newWork);
+                workExecutor.getWorkQueue().addWork(newWork);
+                //managedExecutor.runAsync(runner);
             });
         }
     }
@@ -142,8 +145,18 @@ public class FolderService {
         Value newValue = new Value(folder,folder.group.root,data);
         valueService.create(newValue);
         WorkQueue workQueue = workExecutor.getWorkQueue();
-        //List.copyOf is a hack to get around ConcurrentModificationException that is likely due to using entity list and panache setSources
 
+        //do we only queue the top level and let new values queue the remaining?
+        //that would match the re-calculation workflow
+        //or do we rely on workQueue for de-duplication?
+/*
+        folder.group.getTopLevelNodes().forEach(source ->{
+            Work newWork = new Work(source,new ArrayList<>(source.sources),List.of(newValue));
+            workService.create(newWork);
+            workQueue.addWork(newWork);
+        });
+*/
+        //List.copyOf is a hack to get around ConcurrentModificationException that is likely due to using entity list and panache setSources
         List.copyOf(folder.group.sources).forEach(source -> {
             Work newWork = new Work(source,new ArrayList<>(source.sources),List.of(newValue));
             workService.create(newWork);

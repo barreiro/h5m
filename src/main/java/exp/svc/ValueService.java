@@ -11,6 +11,8 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
+import jakarta.ws.rs.core.Context;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.hibernate.Session;
 import org.hibernate.query.NativeQuery;
 
@@ -35,6 +37,8 @@ public class ValueService {
 //    @Named("duckdb")
 //    AgroalDataSource duckDatasource;
 
+    @ConfigProperty(name="quarkus.datasource.db-kind")
+    String dbKind;
 
 
     @Transactional
@@ -55,6 +59,21 @@ public class ValueService {
             value.persist();
         }
         return value;
+    }
+
+    @Transactional
+    public List<Value> getDependentNodes(Value v){
+        return Node.list("SELECT DISTINCT v FROM Value v JOIN v.sources s WHERE s.id = ?1",v.id);
+    }
+
+
+    @Transactional
+    public void delete(Value value){
+        if(value.id != null){
+            //remove values that depend on this or just remove the reference?
+            getDependentNodes(value).forEach(this::delete);
+            Value.deleteById(value.id);
+        }
     }
 
     @Transactional
@@ -106,16 +125,32 @@ public class ValueService {
     @Transactional
     public List<Value> findMatchingFingerprint(Node source,Value fingerprint){
         List<Value> rtrn = new ArrayList<>(em.createNativeQuery(
-            """
-            with recursive ancestor(vid) as (
-                select v.id as vid 
-                    from value v where v.node_id = :nodeId and v.data = :data
-                union 
-                select v.id as vid 
-                    from value v join value_edge ve on v.id = ve.source_id join ancestor a on a.vid = ve.value_id
-            ) 
-            select * from value v join ancestor a on v.id=a.vid where v.node_id=:sourceId
-            """,Value.class)
+                switch (dbKind){
+                    case "sqlite"->
+                        """
+                        with recursive ancestor(vid) as (
+                            select v.id as vid 
+                                from value v where v.node_id = :nodeId and v.data = :data
+                            union 
+                            select v.id as vid 
+                                from value v join value_edge ve on v.id = ve.source_id join ancestor a on a.vid = ve.value_id
+                        ) 
+                        select * from value v join ancestor a on v.id=a.vid where v.node_id=:sourceId
+                        """;
+                    case "postgresql"->
+                        """
+                        with recursive ancestor(vid) as (
+                            select v.id as vid 
+                                from value v where v.node_id = :nodeId and v.data = cast(:data as jsonb)
+                            union 
+                            select v.id as vid 
+                                from value v join value_edge ve on v.id = ve.source_id join ancestor a on a.vid = ve.value_id
+                        ) 
+                        select * from value v join ancestor a on v.id=a.vid where v.node_id=:sourceId
+                        """;
+                    default -> "";
+                }
+            ,Value.class)
                 .setParameter("nodeId", fingerprint.node.id)
                 .setParameter("data", fingerprint.data.toString())
                 .setParameter("sourceId", source.id)
@@ -130,31 +165,64 @@ public class ValueService {
     @Transactional
     public List<Value> findMatchingFingerprintOrderBy(Node source,Value fingerprint,Node sort){
         List<Value> rtrn = new ArrayList<>(em.createNativeQuery(
-                        """
-                        with recursive ancestor(vid) as (
-                            select v.id as vid 
-                                from value v where v.node_id = :nodeId and v.data = :data
-                            union 
-                            select v.id as vid 
-                                from value v join value_edge ve on v.id = ve.source_id join ancestor a on a.vid = ve.value_id
-                        ),
-                        sorter(vid,sortable) as (
-                            select v.id as vid,v.data as sortable 
-                                from value v where v.node_id = :sortId
-                            union
-                            select v.id as vid, s.sortable as sortable
-                                from value v join value_edge ve on v.id = ve.source_id join sorter s on s.vid = ve.value_id
-                        ),
-                        descendant(vid,sortable) as (
-                           select v.id as vid, s.sortable as sortable
-                             from value v join sorter s on v.id = s.vid join ancestor a on v.id = a.vid join node n on n.id = v.node_id where n.type = 'root' --only the root values from ancestor with sorter
-                           union
-                           select v.id as vid, d.sortable as sortable
-                                 from value v join value_edge ve on v.id = ve.value_id join descendant d on d.vid = ve.source_id
-                        )                        
-                        select * from value v join descendant d on v.id=d.vid where v.node_id=:sourceId order by sortable asc;
-                        """,Value.class)
-                .setParameter("nodeId", fingerprint.node.id)
+            switch(dbKind){
+                case "sqlite"->
+                    """
+                    with recursive ancestor(vid) as (
+                        select v.id as vid 
+                            from value v where v.node_id = :nodeId and v.data = :data
+                        union 
+                        select v.id as vid 
+                            from value v join value_edge ve on v.id = ve.source_id join ancestor a on a.vid = ve.value_id
+                    ),
+                    sorter(vid,sortable) as (
+                        select v.id as vid,v.data as sortable 
+                            from value v where v.node_id = :sortId
+                        union
+                        select v.id as vid, s.sortable as sortable
+                            from value v join value_edge ve on v.id = ve.source_id join sorter s on s.vid = ve.value_id
+                    ),
+                    descendant(vid,sortable) as (
+                       select v.id as vid, s.sortable as sortable
+                         from value v join sorter s on v.id = s.vid join ancestor a on v.id = a.vid join node n on n.id = v.node_id where n.type = 'root' --only the root values from ancestor with sorter
+                       union
+                       select v.id as vid, d.sortable as sortable
+                             from value v join value_edge ve on v.id = ve.value_id join descendant d on d.vid = ve.source_id
+                    )                        
+                    select * from value v join descendant d on v.id=d.vid where v.node_id=:sourceId order by sortable asc;
+                    """;
+                case "postgresql"->
+                    """
+                    with recursive ancestor(vid) as (
+                        select v.id as vid 
+                            from value v where v.node_id = :nodeId and v.data = cast( :data as jsonb)
+                        union 
+                        select v.id as vid 
+                            from value v join value_edge ve on v.id = ve.source_id join ancestor a on a.vid = ve.value_id
+                    ),
+                    sorter(vid,sortable) as (
+                        select v.id as vid,v.data as sortable 
+                            from value v where v.node_id = :sortId
+                        union
+                        select v.id as vid, s.sortable as sortable
+                            from value v join value_edge ve on v.id = ve.source_id join sorter s on s.vid = ve.value_id
+                    ),
+                    descendant(vid,sortable) as (
+                       select v.id as vid, s.sortable as sortable
+                         from value v join sorter s on v.id = s.vid join ancestor a on v.id = a.vid join node n on n.id = v.node_id where n.type = 'root' --only the root values from ancestor with sorter
+                       union
+                       select v.id as vid, d.sortable as sortable
+                             from value v join value_edge ve on v.id = ve.value_id join descendant d on d.vid = ve.source_id
+                    )                        
+                    select * from value v join descendant d on v.id=d.vid where v.node_id=:sourceId order by sortable asc;                    
+                    """;
+                default -> "";
+            }
+
+
+                ,Value.class)
+
+                                       .setParameter("nodeId", fingerprint.node.id)
                 .setParameter("data", fingerprint.data.toString())
                 .setParameter("sourceId", source.id)
                 .setParameter("sortId",sort.id)
@@ -209,19 +277,35 @@ public class ValueService {
      * @return
      */
     @Transactional
+    //TODO here thar be dragons
     public List<JsonNode> getGroupedValues(Node groupBy){
         List<JsonNode> rtrn = new ArrayList<>();
         NativeQuery query = (NativeQuery) em.createNativeQuery(
-                """
-                with recursive tree(id,node_id,root_id,idx,data) as (
-                  select v.id,v.node_id,ve.source_id as root_id,v.idx,v.data from value_edge ve left join value v on ve.value_id = v.id where ve.source_id in (select id from value where node_id = :nodeId)
-                  union
-                  select v.id,v.node_id,t.root_id,v.idx,v.data from value v join value_edge ve on v.id = ve.value_id join tree t on ve.source_id = t.id
-                ), bynode as (
-                  select node_id,root_id,json_group_array(json(data)) as data from tree group by node_id,root_id order by idx
-                )
-                select json_group_object(n.name,json( ( case when json_array_length(b.data) > 1 then b.data else b.data->0 end))) as data from bynode b join node n on b.node_id = n.id group by root_id; 
-                """
+                switch(dbKind) {
+                    case "sqlite" ->
+                        """
+                        with recursive tree(id,node_id,root_id,idx,data) as (
+                            select v.id,v.node_id,ve.source_id as root_id,v.idx,v.data from value_edge ve left join value v on ve.value_id = v.id where ve.source_id in (select id from value where node_id = :nodeId)
+                            union
+                            select v.id,v.node_id,t.root_id,v.idx,v.data from value v join value_edge ve on v.id = ve.value_id join tree t on ve.source_id = t.id
+                        ), bynode as (
+                            select node_id,root_id,json_group_array(json(data)) as data from tree group by node_id,root_id order by idx
+                        )
+                        select json_group_object(n.name,json( ( case when json_array_length(b.data) > 1 then b.data else b.data->0 end))) as data from bynode b join node n on b.node_id = n.id group by root_id; 
+                        """;
+                    case "postgresql" ->
+                        """
+                        with recursive tree(id,node_id,root_id,idx,data) as (
+                            select v.id,v.node_id,ve.source_id as root_id,v.idx,v.data from value_edge ve left join value v on ve.value_id = v.id where ve.source_id in (select id from value where node_id = :nodeId)
+                            union
+                            select v.id,v.node_id,t.root_id,v.idx,v.data from value v join value_edge ve on v.id = ve.value_id join tree t on ve.source_id = t.id
+                        ), bynode as (
+                            select node_id,root_id,jsonb_agg(to_jsonb(data)) as data from tree group by node_id,root_id,idx order by idx
+                        )
+                        select jsonb_object_agg(n.name,to_jsonb( ( case when jsonb_array_length(b.data) > 1 then b.data else b.data->0 end))) as data from bynode b join node n on b.node_id = n.id group by root_id;                        
+                        """;
+                default ->"";
+                }
         ).setParameter("nodeId",groupBy.id);
         List<JsonNode> found = query
                 .unwrap(NativeQuery.class)
@@ -276,6 +360,13 @@ public class ValueService {
     }
 
     @Transactional
+    public Map<String,Value> getDescendantValueByPath(Value root,Node node){
+        List<Value> found = getDescendantValues(root,node);
+        found.forEach(v->{v.hashCode();});//lazy hack
+        return found.stream().collect(Collectors.toMap(Value::getPath,v->v));
+    }
+
+    @Transactional
     public List<Value> getValues(Node node){
         return Value.find("node.id",node.id).list();
     }
@@ -289,15 +380,17 @@ public class ValueService {
             try(PreparedStatement statement = conn.prepareStatement("select data from value where id=?")){
                 statement.setLong(1,valueId);
                 try(ResultSet rs = statement.executeQuery()){
-                    try (InputStream inputStream = rs.getBinaryStream(1);
-                         OutputStream outputStream = new FileOutputStream(filePath)) {
+                    if(rs.next()) {
+                        try (InputStream inputStream = rs.getBinaryStream(1);
+                             OutputStream outputStream = new FileOutputStream(filePath)) {
 
-                        long bytesCopied = inputStream.transferTo(outputStream);
-                        if(bytesCopied < 1){
-                            System.out.println("failed to transfer data for value="+valueId);
+                            long bytesCopied = inputStream.transferTo(outputStream);
+                            if (bytesCopied < 1) {
+                                System.err.println("failed to transfer data for value=" + valueId);
+                            }
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
                         }
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
                     }
                 }
             } catch (SQLException e) {
@@ -309,6 +402,7 @@ public class ValueService {
     @Transactional
     public int deleteDescendantValues(Value root,Node node){
         List<Value> descendants = getDescendantValues(root,node);
+        descendants = KahnDagSort.sort(descendants,v->v.getSources()).reversed();
         descendants.forEach(PanacheEntityBase::delete);
         return descendants.size();
     }

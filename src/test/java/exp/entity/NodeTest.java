@@ -1,5 +1,6 @@
 package exp.entity;
 
+import exp.FreshDb;
 import exp.entity.node.JqNode;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
@@ -93,7 +94,7 @@ public class NodeTest {
     }
     @Test
     public void isCircular_circular_three_nodes(){
-        Node n1 = new JqNode("n1");
+        Node n1 = new JqNode("n1",".");
         Node n2 = new JqNode("n2",".",n1);
         Node n3 = new JqNode("n3",".",n2);
         n1.sources=List.of(n3);

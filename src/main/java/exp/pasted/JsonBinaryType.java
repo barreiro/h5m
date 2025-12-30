@@ -49,13 +49,15 @@ public class JsonBinaryType implements UserType<JsonNode> {
     public JsonNode nullSafeGet(ResultSet rs, int position, SharedSessionContractImplementor session, Object owner)
             throws SQLException {
         final byte[] colBytes =  rs.getBytes(position);
+
         if (colBytes == null) {
             return null;
         }
         try {
-            return mapper.readTree(colBytes);
+            JsonNode node = mapper.readTree(colBytes);
+            return node;
         } catch (final Exception ex) {
-
+            System.out.println("Defaulting to textNode for "+new String(colBytes)+" due to "+ex.getMessage());
             //throw new RuntimeException("Failed to convert String to JSON: " + ex.getMessage(), ex);
             return new TextNode(new String(colBytes));
         }

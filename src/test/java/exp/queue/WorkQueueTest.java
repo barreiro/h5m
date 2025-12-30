@@ -1,24 +1,21 @@
 package exp.queue;
 
+import exp.FreshDb;
 import exp.entity.Node;
 import exp.entity.Work;
 import exp.entity.node.JqNode;
-import exp.provided.SqliteDatasourceConfiguration;
 import exp.svc.WorkService;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
 import jakarta.transaction.*;
-import org.hibernate.Hibernate;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.io.File;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 @QuarkusTest
-public class WorkQueueTest {
+public class WorkQueueTest extends FreshDb {
 
     @Inject
     TransactionManager tm;
@@ -49,8 +46,8 @@ public class WorkQueueTest {
 
         assertNotNull(firstRunnable);
 
-        assertFalse(q.hasWork(aWork),"a should be removed from the q");
-        assertTrue(q.hasWork(bWork),"b should remain in the queue");
+        assertFalse(q.isPending(aWork),"a should be removed from the q");
+        assertTrue(q.isPending(bWork),"b should remain in the queue");
 
         Runnable polled = q.poll();
 
@@ -88,13 +85,13 @@ public class WorkQueueTest {
         q.addWork(cWork);
 
         Runnable firstRunnable = q.poll();
-        assertFalse(q.hasWork(aWork),"a should be removed from the q");
+        assertFalse(q.isPending(aWork),"a should be removed from the q");
 
         Runnable polled = q.poll();
 
         assertNotNull(polled,"poll should pull next runnable work");
-        assertTrue(q.hasWork(bWork),"b should remain in the queue");
-        assertFalse(q.hasWork(cWork),"c should not be in the queue");
+        assertTrue(q.isPending(bWork),"b should remain in the queue");
+        assertFalse(q.isPending(cWork),"c should not be in the queue");
     }
 
 

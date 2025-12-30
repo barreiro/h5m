@@ -6,19 +6,16 @@ import exp.svc.NodeGroupService;
 import exp.svc.NodeService;
 import exp.svc.ValueService;
 import exp.svc.WorkService;
-import io.hyperfoil.tools.yaup.AsciiArt;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.binder.jvm.ExecutorServiceMetrics;
 import jakarta.annotation.Priority;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Alternative;
-import jakarta.enterprise.inject.Default;
 import jakarta.enterprise.inject.Disposes;
 import jakarta.enterprise.inject.Produces;
 import jakarta.inject.Inject;
 import jakarta.inject.Named;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
-import picocli.CommandLine;
 
 import java.sql.SQLException;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -29,6 +26,7 @@ public class ExecutorConfiguration {
 
     @Inject
     MeterRegistry registry; // Injected by Quarkus Micrometer
+
 
     @Inject
     WorkService workService;
@@ -63,6 +61,7 @@ public class ExecutorConfiguration {
     @Priority(9997)
     @Named("workExecutor")
     public WorkQueueExecutor initDatasource(/*CommandLine.ParseResult parseResult*/) throws SQLException {
+
         WorkQueue workQueue = new WorkQueue(nodeService,valueService,workService);
         WorkQueueExecutor rtrn = new WorkQueueExecutor(
                 1,

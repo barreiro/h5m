@@ -19,12 +19,10 @@ import org.junit.jupiter.api.Test;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -41,17 +39,16 @@ public class NodeServiceTest extends FreshDb {
     @Test
     public void create_without_group() {
         Node jqNode = new JqNode("foo",".bar");
-        long response = nodeService.create(jqNode);
-        assertTrue(response > 0);
-        assertEquals(jqNode.id, response);
+        Node response = nodeService.create(jqNode);
+        assertNotNull(response.id);
+        assertTrue(response.id > 0);
+        assertEquals(jqNode.id, response.id);
     }
     @Test
     public void delete_without_group(){
         Node jqNode = new JqNode("foo",".bar");
-        long response = nodeService.create(jqNode);
-
+        Node response = nodeService.create(jqNode);
         nodeService.delete(jqNode);
-
         List<Node> found = nodeService.findNodeByFqdn("foo");
         assertEquals(0, found.size());
     }
@@ -145,6 +142,23 @@ public class NodeServiceTest extends FreshDb {
         assertNotNull(calculated);
         assertEquals(1,calculated.size());
 
+    }
+
+    @Test
+    public void getDependentNodes() throws HeuristicRollbackException, SystemException, HeuristicMixedException, RollbackException, NotSupportedException {
+        tm.begin();
+        RootNode root = new RootNode();
+        Node n1 = nodeService.create(new JqNode("n1","n1",root));
+        Node n11 = nodeService.create(new JqNode("n11","n11",n1));
+        Node n12 = nodeService.create(new JqNode("n12","n12",n1));
+        Node n121 = nodeService.create(new JqNode("n121","n121",n12));
+        tm.commit();
+
+        List<Node> found = nodeService.getDependentNodes(n1);
+        assertNotNull(found);
+        assertEquals(2,found.size(),"should find two nodes: "+found);
+        assertTrue(found.contains(n11),"should find node11 "+n11+" : "+found);
+        assertTrue(found.contains(n12),"should find node12 "+n12+" : "+found);
     }
 
     @Test

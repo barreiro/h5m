@@ -1,13 +1,12 @@
 package exp.command;
 
-import exp.provided.SqliteDatasourceConfiguration;
-import io.hyperfoil.tools.yaup.AsciiArt;
+import exp.provided.DatasourceConfiguration;
+import io.quarkus.test.TestTransaction;
 import io.quarkus.test.junit.main.LaunchResult;
 import io.quarkus.test.junit.main.QuarkusMainLauncher;
 import io.quarkus.test.junit.main.QuarkusMainTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -19,7 +18,6 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @QuarkusMainTest
 public class H5mTest {
-
     public static List<LaunchResult> run(QuarkusMainLauncher launcher,String[]... args){
         return Arrays.stream(args).map(arg->{
             System.out.println("run: "+Arrays.toString(arg));
@@ -29,7 +27,7 @@ public class H5mTest {
     @BeforeEach
     public void dropDb(){
         ///tmp/h5m-test.db-shm, /tmp/h5m-test.db-wal, /tmp/h5m-test.db
-        String path = SqliteDatasourceConfiguration.getPath();
+        String path = DatasourceConfiguration.getPath();
         List.of("","-shm","-wal").forEach(suffix->{
             File f = new File(path+suffix);
             if(f.exists()){
@@ -38,31 +36,39 @@ public class H5mTest {
         });
     }
     @Test
+    @TestTransaction
     public void list(QuarkusMainLauncher launcher) {
         LaunchResult result = launcher.launch("list");
         assertEquals(0,result.exitCode(),result.getOutput());
     }
 
     @Test
+    @TestTransaction
     public void help(QuarkusMainLauncher launcher) {
         LaunchResult result = launcher.launch("help");
         assertEquals(0,result.exitCode(),result.getOutput());
     }
 
     @Test
+    @TestTransaction
     public void add_folder(QuarkusMainLauncher launcher) {
+        String testName = StackWalker.getInstance()
+                .walk(s -> s.skip(0).findFirst())
+                .get()
+                .getMethodName();
         List<LaunchResult> results = run(launcher,
-                new String[]{"add","folder","foo"},
+                new String[]{"add","folder",testName},
                 new String[]{"list","folders"}
         );
         results.forEach(result->{
             assertEquals(0,result.exitCode(),result.getOutput());
         });
         LaunchResult result = results.getLast();
-        assertTrue(result.getOutput().contains("foo"),result.getOutput());
+        assertTrue(result.getOutput().contains(testName),result.getOutput());
     }
 
     @Test
+    @TestTransaction
     public void list_folder(QuarkusMainLauncher launcher) {
         List<LaunchResult> results = run(launcher,
             new String[]{"add","folder","foo"},
@@ -80,27 +86,37 @@ public class H5mTest {
         }
     }
     @Test
+    @TestTransaction
     public void remove_folder(QuarkusMainLauncher launcher) {
+        String testName = StackWalker.getInstance()
+                .walk(s -> s.skip(0).findFirst())
+                .get()
+                .getMethodName();
         List<LaunchResult> results = run(launcher,
-                new String[]{"add","folder","foo"},
-                new String[]{"remove","folder","foo"},
+                new String[]{"add","folder",testName},
+                new String[]{"remove","folder",testName},
                 new String[]{"list","folders"}
         );
         results.forEach(result->{
             assertEquals(0,result.exitCode(),result.getOutput());
         });
         LaunchResult result = results.getLast();
-        assertFalse(result.getOutput().contains("foo"),"expect to not find foo folder: "+result.getOutput());
+        assertFalse(result.getOutput().contains(testName),"expect to not find foo folder: "+result.getOutput());
     }
 
     @Test
+    @TestTransaction
     public void add_jq_list_node(QuarkusMainLauncher launcher) {
+        String testName = StackWalker.getInstance()
+                .walk(s -> s.skip(0).findFirst())
+                .get()
+                .getMethodName();
         List<LaunchResult> results = run(launcher,
-                new String[]{"add","folder","foo"},
-                new String[]{"add","jq","to","foo","buz",".buz"},
-                new String[]{"add","jq","to","foo","bizzing","{buz}:.biz"},
-                new String[]{"list","foo","nodes"},
-                new String[]{"list","nodes","from","foo"}
+                new String[]{"add","folder",testName},
+                new String[]{"add","jq","to",testName,"buz",".buz"},
+                new String[]{"add","jq","to",testName,"bizzing","{buz}:.biz"},
+                new String[]{"list",testName,"nodes"},
+                new String[]{"list","nodes","from",testName}
         );
         results.forEach(result->{
             assertEquals(0,result.exitCode(),result.getOutput());
@@ -109,13 +125,18 @@ public class H5mTest {
         assertTrue(result.getOutput().contains("biz"),"expect to find biz: "+result.getOutput());
     }
     @Test
+    @TestTransaction
     public void remove_node(QuarkusMainLauncher launcher) {
+        String testName = StackWalker.getInstance()
+                .walk(s -> s.skip(0).findFirst())
+                .get()
+                .getMethodName();
         List<LaunchResult> results = run(launcher,
-                new String[]{"add","folder","foo"},
-                new String[]{"add","jq","to","foo","biz",".biz"},
-                new String[]{"list","foo","nodes"},
-                new String[]{"remove","node","biz","from","foo"},
-                new String[]{"list","foo","nodes"}
+                new String[]{"add","folder",testName},
+                new String[]{"add","jq","to",testName,"biz",".biz"},
+                new String[]{"list",testName,"nodes"},
+                new String[]{"remove","node","biz","from",testName},
+                new String[]{"list",testName,"nodes"}
         );
         results.forEach(result->{
             assertEquals(0,result.exitCode(),result.getOutput());
@@ -125,7 +146,12 @@ public class H5mTest {
     }
 
     @Test
+    @TestTransaction
     public void upload_list_values(QuarkusMainLauncher launcher) throws IOException {
+        String testName = StackWalker.getInstance()
+                .walk(s -> s.skip(0).findFirst())
+                .get()
+                .getMethodName();
         Path folder = Files.createTempDirectory("h5m");
         Path filePath = Files.writeString(Files.createTempFile(folder,"h5m",".json").toAbsolutePath(),
                 """
@@ -140,13 +166,13 @@ public class H5mTest {
         );
         //filePath.toFile().deleteOnExit();
         List<LaunchResult> results = run(launcher,
-                new String[]{"add","folder","test"},
-                new String[]{"add","jq","to","test","foo",".foo"},
-                new String[]{"add","jq","to","test","bar","{foo}:.bar"},
-                new String[]{"add","jq","to","test","biz","{bar}:.biz"},
-                new String[]{"list","test","nodes",},
-                new String[]{"upload",folder.toString(),"to","test"},
-                new String[]{"list","value","from","test"}
+                new String[]{"add","folder",testName},
+                new String[]{"add","jq","to",testName,"foo",".foo"},
+                new String[]{"add","jq","to",testName,"bar","{foo}:.bar"},
+                new String[]{"add","jq","to",testName,"biz","{bar}:.biz"},
+                new String[]{"list",testName,"nodes",},
+                new String[]{"upload",folder.toString(),"to",testName},
+                new String[]{"list","value","from",testName}
         );
         results.forEach(result->{
             assertEquals(0,result.exitCode(),result.getOutput());
@@ -159,7 +185,12 @@ public class H5mTest {
         assertTrue(result.getOutput().contains(" buz "),"result should contain .bar:" +result.getOutput());
     }
     @Test
+    @TestTransaction
     public void upload_folder_list_values(QuarkusMainLauncher launcher) throws IOException {
+        String testName = StackWalker.getInstance()
+                .walk(s -> s.skip(0).findFirst())
+                .get()
+                .getMethodName();
         Path folder = Files.createTempDirectory("h5m");
         Path filePath01 = Files.writeString(Files.createTempFile(folder,"h5m",".json").toAbsolutePath(),
                 """
@@ -185,13 +216,13 @@ public class H5mTest {
         );
         //filePath.toFile().deleteOnExit();
         List<LaunchResult> results = run(launcher,
-                new String[]{"add","folder","test"},
-                new String[]{"add","jq","to","test","foo",".foo"},
-                new String[]{"add","jq","to","test","bar","{foo}:.bar"},
-                new String[]{"add","jq","to","test","biz","{bar}:.biz"},
-                new String[]{"list","test","nodes",},
-                new String[]{"upload",folder.toString(),"to","test"},
-                new String[]{"list","value","from","test"}
+                new String[]{"add","folder",testName},
+                new String[]{"add","jq","to",testName,"foo",".foo"},
+                new String[]{"add","jq","to",testName,"bar","{foo}:.bar"},
+                new String[]{"add","jq","to",testName,"biz","{bar}:.biz"},
+                new String[]{"list",testName,"nodes",},
+                new String[]{"upload",folder.toString(),"to",testName},
+                new String[]{"list","value","from",testName}
         );
         results.forEach(result->{
             assertEquals(0,result.exitCode(),result.getOutput());
@@ -207,7 +238,12 @@ public class H5mTest {
         assertTrue(result.getOutput().contains(" bur "),"result should contain .bar:" +result.getOutput());
     }
     @Test
+    @TestTransaction
     public void upload_jsonata_list_values(QuarkusMainLauncher launcher) throws IOException {
+        String testName = StackWalker.getInstance()
+                .walk(s -> s.skip(0).findFirst())
+                .get()
+                .getMethodName();
         Path folder = Files.createTempDirectory("h5m");
         Path filePath = Files.writeString(Files.createTempFile(folder,"h5m",".json").toAbsolutePath(),
                 """
@@ -222,13 +258,13 @@ public class H5mTest {
         );
         //filePath.toFile().deleteOnExit();
         List<LaunchResult> results = run(launcher,
-                new String[]{"add","folder","test"},
-                new String[]{"add","jsonata","to","test","foo","foo"},
-                new String[]{"add","jsonata","to","test","bar","{foo}:bar"},
-                new String[]{"add","jsonata","to","test","biz","{bar}:biz"},
-                new String[]{"list","test","nodes",},
-                new String[]{"upload",folder.toString(),"to","test"},
-                new String[]{"list","value","from","test"}
+                new String[]{"add","folder",testName},
+                new String[]{"add","jsonata","to",testName,"foo","foo"},
+                new String[]{"add","jsonata","to",testName,"bar","{foo}:bar"},
+                new String[]{"add","jsonata","to",testName,"biz","{bar}:biz"},
+                new String[]{"list",testName,"nodes",},
+                new String[]{"upload",folder.toString(),"to",testName},
+                new String[]{"list","value","from",testName}
         );
         results.forEach(result->{
             assertEquals(0,result.exitCode(),result.getOutput());
@@ -241,7 +277,12 @@ public class H5mTest {
         assertTrue(result.getOutput().contains(" buz "),"result should contain .bar:" +result.getOutput());
     }
     @Test
+    @TestTransaction
     public void upload_sqlpath_list_values(QuarkusMainLauncher launcher) throws IOException {
+        String testName = StackWalker.getInstance()
+                .walk(s -> s.skip(0).findFirst())
+                .get()
+                .getMethodName();
         Path folder = Files.createTempDirectory("h5m");
         Path filePath = Files.writeString(Files.createTempFile(folder,"h5m",".json").toAbsolutePath(),
                 """
@@ -256,13 +297,13 @@ public class H5mTest {
         );
         //filePath.toFile().deleteOnExit();
         List<LaunchResult> results = run(launcher,
-                new String[]{"add","folder","test"},
-                new String[]{"add","sqlpath","to","test","foo","$.foo"},
-                new String[]{"add","sqlpath","to","test","bar","{foo}:$.bar"},
-                new String[]{"add","sqlpath","to","test","biz","{bar}:$.biz"},
-                new String[]{"list","test","nodes",},
-                new String[]{"upload",folder.toString(),"to","test"},
-                new String[]{"list","value","from","test"}
+                new String[]{"add","folder",testName},
+                new String[]{"add","sqlpath","to",testName,"foo","$.foo"},
+                new String[]{"add","sqlpath","to",testName,"bar","{foo}:$.bar"},
+                new String[]{"add","sqlpath","to",testName,"biz","{bar}:$.biz"},
+                new String[]{"list",testName,"nodes",},
+                new String[]{"upload",folder.toString(),"to",testName},
+                new String[]{"list","value","from",testName}
         );
         results.forEach(result->{
             assertEquals(0,result.exitCode(),result.getOutput());
@@ -275,7 +316,12 @@ public class H5mTest {
         assertTrue(result.getOutput().contains(" buz "),"result should contain .bar:" +result.getOutput());
     }
     @Test
+    @TestTransaction
     public void upload_list_values_by_node(QuarkusMainLauncher launcher) throws IOException {
+        String testName = StackWalker.getInstance()
+                .walk(s -> s.skip(0).findFirst())
+                .get()
+                .getMethodName();
         Path folder = Files.createTempDirectory("h5m");
         Path filePath = Files.writeString(Files.createTempFile(folder,"h5m",".json").toAbsolutePath(),
                 """
@@ -298,21 +344,26 @@ public class H5mTest {
         );
         //filePath.toFile().deleteOnExit();
         List<LaunchResult> results = run(launcher,
-                new String[]{"add","folder","test"},
-                new String[]{"add","jq","to","test","foo",".foo[]"},//this should act like a dataset
-                new String[]{"add","jq","to","test","name","{foo}:.name"},
-                new String[]{"add","jq","to","test","bar","{foo}:.bar"},
-                new String[]{"add","jq","to","test","biz","{bar}:.biz[] + \"-it\""},//this should also split into a dataset
-                new String[]{"list","test","nodes"},
-                new String[]{"upload",folder.toString(),"to","test"},
-                new String[]{"list","value","from","test","by","foo"}
+                new String[]{"add","folder",testName},
+                new String[]{"add","jq","to",testName,"foo",".foo[]"},//this should act like a dataset
+                new String[]{"add","jq","to",testName,"name","{foo}:.name"},
+                new String[]{"add","jq","to",testName,"bar","{foo}:.bar"},
+                new String[]{"add","jq","to",testName,"biz","{bar}:.biz[] + \"-it\""},//this should also split into a dataset
+                new String[]{"list",testName,"nodes"},
+                new String[]{"upload",folder.toString(),"to",testName},
+                new String[]{"list","value","from",testName,"by","foo"}
         );
         results.forEach(result->{
             assertEquals(0,result.exitCode(),result.getOutput());
         });
     }
     @Test
+    @TestTransaction
     public void upload_jq_multi_input(QuarkusMainLauncher launcher) throws IOException {
+        String testName = StackWalker.getInstance()
+                .walk(s -> s.skip(0).findFirst())
+                .get()
+                .getMethodName();
         Path folder = Files.createTempDirectory("h5m");
         Path filePath = Files.writeString(Files.createTempFile(folder,"h5m",".json").toAbsolutePath(),
                 """
@@ -325,14 +376,14 @@ public class H5mTest {
                 """
         );
         List<LaunchResult> results = run(launcher,
-                new String[]{"add","folder","demo"},
-                new String[]{"add","jq","to","demo","foo",".foo[]"},
-                new String[]{"add","jq","to","demo","cpu","{foo}:.cpu"},
-                new String[]{"add","jq","to","demo","mem","{foo}:.mem"},
-                new String[]{"add","jq","to","demo","fingerprint","{mem,cpu}:."},
-                new String[]{"list","demo","nodes"},
-                new String[]{"upload",folder.toString(),"to","demo"},
-                new String[]{"list","value","from","demo"}
+                new String[]{"add","folder",testName},
+                new String[]{"add","jq","to",testName,"foo",".foo[]"},
+                new String[]{"add","jq","to",testName,"cpu","{foo}:.cpu"},
+                new String[]{"add","jq","to",testName,"mem","{foo}:.mem"},
+                new String[]{"add","jq","to",testName,"fingerprint","{mem,cpu}:."},
+                new String[]{"list",testName,"nodes"},
+                new String[]{"upload",folder.toString(),"to",testName},
+                new String[]{"list","value","from",testName}
 
         );
         results.forEach(result->{
@@ -342,7 +393,12 @@ public class H5mTest {
         assertTrue(result.getOutput().contains("Count: 8"));
     }
     @Test
+    @TestTransaction
     public void upload_js_multi_input(QuarkusMainLauncher launcher) throws IOException {
+        String testName = StackWalker.getInstance()
+                .walk(s -> s.skip(0).findFirst())
+                .get()
+                .getMethodName();
         Path folder = Files.createTempDirectory("h5m");
         Path filePath = Files.writeString(Files.createTempFile(folder,"h5m",".json").toAbsolutePath(),
                 """
@@ -355,25 +411,30 @@ public class H5mTest {
                 """
         );
         List<LaunchResult> results = run(launcher,
-                new String[]{"add","folder","demo"},
-                new String[]{"add","jq","to","demo","foo",".foo[]"},
-                new String[]{"add","jq","to","demo","cpu","{foo}:.cpu"},
-                new String[]{"add","jq","to","demo","mem","{foo}:.mem"},
-                new String[]{"add","js","to","demo","fingerprint","({mem,cpu})=>({'fromMem':mem,'fromCpu':cpu})"},
-                new String[]{"list","demo","nodes"},
-                new String[]{"upload",folder.toString(),"to","demo"},
-                new String[]{"list","value","from","demo"}
+                new String[]{"add","folder",testName},
+                new String[]{"add","jq","to",testName,"foo",".foo[]"},
+                new String[]{"add","jq","to",testName,"cpu","{foo}:.cpu"},
+                new String[]{"add","jq","to",testName,"mem","{foo}:.mem"},
+                new String[]{"add","js","to",testName,"fingerprint","({mem,cpu})=>({'fromMem':mem,'fromCpu':cpu})"},
+                new String[]{"list",testName,"nodes"},
+                new String[]{"upload",folder.toString(),"to",testName},
+                new String[]{"list","value","from",testName}
         );
         results.forEach(result->{
             assertEquals(0,result.exitCode(),result.getOutput());
         });
         LaunchResult result = results.getLast();
-        assertTrue(result.getOutput().contains("Count: 8"));
+        assertTrue(result.getOutput().contains("Count: 8"),"expect to find 8 values\n"+result.getOutput());
         assertFalse(result.getOutput().contains("null")||result.getOutput().contains("NULL"),"list values should not contain null\n"+result.getOutput());
     }
 
     @Test
+    @TestTransaction
     public void recalculate_jq_multi_input(QuarkusMainLauncher launcher) throws IOException {
+        String testName = StackWalker.getInstance()
+                .walk(s -> s.skip(0).findFirst())
+                .get()
+                .getMethodName();
         Path folder = Files.createTempDirectory("h5m");
         Path filePath = Files.writeString(Files.createTempFile(folder,"h5m",".json").toAbsolutePath(),
                 """
@@ -386,16 +447,16 @@ public class H5mTest {
                 """
         );
         List<LaunchResult> results = run(launcher,
-                new String[]{"add","folder","demo"},
-                new String[]{"add","jq","to","demo","foo",".foo[]"},
-                new String[]{"add","jq","to","demo","cpu","{foo}:.cpu"},
-                new String[]{"add","jq","to","demo","mem","{foo}:.mem"},
-                new String[]{"add","jq","to","demo","fingerprint","{mem,cpu}:."},
-                new String[]{"list","demo","nodes"},
-                new String[]{"upload",folder.toString(),"to","demo"},
-                new String[]{"list","value","from","demo"},
-                new String[]{"recalculate","demo"},
-                new String[]{"list","value","from","demo"}
+                new String[]{"add","folder",testName},
+                new String[]{"add","jq","to",testName,"foo",".foo[]"},
+                new String[]{"add","jq","to",testName,"cpu","{foo}:.cpu"},
+                new String[]{"add","jq","to",testName,"mem","{foo}:.mem"},
+                new String[]{"add","jq","to",testName,"fingerprint","{mem,cpu}:."},
+                new String[]{"list",testName,"nodes"},
+                new String[]{"upload",folder.toString(),"to",testName},
+                new String[]{"list","value","from",testName},
+                new String[]{"recalculate",testName},
+                new String[]{"list","value","from",testName}
 
         );
         results.forEach(result->{
@@ -405,7 +466,12 @@ public class H5mTest {
         assertTrue(result.getOutput().contains("Count: 8"));
     }
     @Test
+    @TestTransaction
     public void list_values_as_table(QuarkusMainLauncher launcher) throws IOException {
+        String testName = StackWalker.getInstance()
+                .walk(s -> s.skip(0).findFirst())
+                .get()
+                .getMethodName();
         Path folder = Files.createTempDirectory("h5m");
         Path filePath = Files.writeString(Files.createTempFile(folder,"h5m",".json").toAbsolutePath(),
                 """
@@ -420,15 +486,15 @@ public class H5mTest {
                 """
         );
         List<LaunchResult> results = run(launcher,
-                new String[]{"add","folder","demo"},
-                new String[]{"add","jq","to","demo","str",".string"},
-                new String[]{"add","jq","to","demo","version",".version"},
-                new String[]{"add","jq","to","demo","double",".double"},
-                new String[]{"add","jq","to","demo","integer",".integer"},
-                new String[]{"add","jq","to","demo","array",".array"},
-                new String[]{"add","jq","to","demo","obj",".object"},
-                new String[]{"upload",folder.toString(),"to","demo"},
-                new String[]{"list","value","from","demo","as","table"}
+                new String[]{"add","folder",testName},
+                new String[]{"add","jq","to",testName,"str",".string"},
+                new String[]{"add","jq","to",testName,"version",".version"},
+                new String[]{"add","jq","to",testName,"double",".double"},
+                new String[]{"add","jq","to",testName,"integer",".integer"},
+                new String[]{"add","jq","to",testName,"array",".array"},
+                new String[]{"add","jq","to",testName,"obj",".object"},
+                new String[]{"upload",folder.toString(),"to",testName},
+                new String[]{"list","value","from",testName,"as","table"}
 
         );
         results.forEach(result->{
@@ -436,12 +502,17 @@ public class H5mTest {
         });
 
         LaunchResult result = results.getLast();
-        assertFalse(result.getOutput().contains("1.333"),"double should be truncated");
-        assertFalse(result.getOutput().contains("\"example\""),"strings should not be quoted");
+        assertTrue(result.getOutput().contains("│ 1.33"),"double should be truncated\n"+result.getOutput());
+        assertFalse(result.getOutput().contains("│ 1.333"),"double should be truncated\n"+result.getOutput());
+        assertFalse(result.getOutput().contains("\"example\""),"strings should not be quoted\n"+result.getOutput());
 
     }
     @Test
     public void list_values_as_table_group_by(QuarkusMainLauncher launcher) throws IOException {
+        String testName = StackWalker.getInstance()
+                .walk(s -> s.skip(0).findFirst())
+                .get()
+                .getMethodName();
         Path folder = Files.createTempDirectory("h5m");
         Path filePath = Files.writeString(Files.createTempFile(folder,"h5m",".json").toAbsolutePath(),
                 """
@@ -457,16 +528,16 @@ public class H5mTest {
                 """
         );
         List<LaunchResult> results = run(launcher,
-                new String[]{"add","folder","demo"},
-                new String[]{"add","jq","to","demo","foo",".foo[]"},
-                new String[]{"add","jq","to","demo","str","{foo}:.string"},
-                new String[]{"add","jq","to","demo","version","{foo}:.version"},
-                new String[]{"add","jq","to","demo","double","{foo}:.double"},
-                new String[]{"add","jq","to","demo","integer","{foo}:.integer"},
-                new String[]{"add","jq","to","demo","array","{foo}:.array"},
-                new String[]{"add","jq","to","demo","obj","{foo}:.object"},
-                new String[]{"upload",folder.toString(),"to","demo"},
-                new String[]{"list","value","from","demo","by","foo","as","table"}
+                new String[]{"add","folder",testName},
+                new String[]{"add","jq","to",testName,"foo",".foo[]"},
+                new String[]{"add","jq","to",testName,"str","{foo}:.string"},
+                new String[]{"add","jq","to",testName,"version","{foo}:.version"},
+                new String[]{"add","jq","to",testName,"double","{foo}:.double"},
+                new String[]{"add","jq","to",testName,"integer","{foo}:.integer"},
+                new String[]{"add","jq","to",testName,"array","{foo}:.array"},
+                new String[]{"add","jq","to",testName,"obj","{foo}:.object"},
+                new String[]{"upload",folder.toString(),"to",testName},
+                new String[]{"list","value","from",testName,"by","foo","as","table"}
 
         );
         results.forEach(result->{

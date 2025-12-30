@@ -14,6 +14,7 @@ import org.hibernate.annotations.Type;
 
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Entity
 @Table(
@@ -21,7 +22,7 @@ import java.util.*;
 )
 public class Value extends PanacheEntity {
 
-    @Column(name = "data", columnDefinition = "JSON")
+    @Column(name = "data", columnDefinition = "JSONB")
     @Type(JsonBinaryType.class)
     @Basic(fetch = FetchType.LAZY)
     public JsonNode data;
@@ -44,6 +45,9 @@ public class Value extends PanacheEntity {
     @CreationTimestamp
     @Column(name = "created_at", updatable = false) // updatable = false ensures it's set only once
     private LocalDateTime createdAt;
+
+    @Column(name = "last_updated")
+    private LocalDateTime lastUpdated;
 
     public Long getId(){return id;}
 
@@ -72,10 +76,18 @@ public class Value extends PanacheEntity {
         this.data = data;
     }
 
+    public String getPath(){
+        String prefix = node.getId()+"="+idx;
+        String suffix = (sources!=null ? ( ","+sources.stream().map(v->{
+            return v.getPath();
+        }).collect(Collectors.joining(","))) : "");
+        return prefix+suffix;
+    }
 
     @PreUpdate
     @PrePersist
-    public void sortSources() {
+    public void preUpdate() {
+        this.lastUpdated =  LocalDateTime.now();
         this.sources = KahnDagSort.sort(sources,Value::getSources);
     }
 
