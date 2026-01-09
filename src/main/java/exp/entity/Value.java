@@ -4,13 +4,13 @@ import com.fasterxml.jackson.annotation.JsonIdentityInfo;
 import com.fasterxml.jackson.annotation.JsonIdentityReference;
 import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import com.fasterxml.jackson.databind.JsonNode;
-import exp.pasted.JsonBinaryType;
 import exp.queue.KahnDagSort;
 import io.quarkus.hibernate.orm.panache.PanacheEntity;
-import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
+import io.quarkus.runtime.annotations.RegisterForReflection;
 import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.Type;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -23,7 +23,7 @@ import java.util.stream.Collectors;
 public class Value extends PanacheEntity {
 
     @Column(name = "data", columnDefinition = "JSONB")
-    @Type(JsonBinaryType.class)
+    @JdbcTypeCode(SqlTypes.JSON)
     @Basic(fetch = FetchType.LAZY)
     public JsonNode data;
 
@@ -75,6 +75,9 @@ public class Value extends PanacheEntity {
         this.node = node;
         this.data = data;
     }
+
+    @RegisterForReflection
+    public record DataProjection(JsonNode data) {} // field names must match with entity
 
     public String getPath(){
         String prefix = node.getId()+"="+idx;
