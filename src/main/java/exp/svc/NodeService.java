@@ -13,12 +13,9 @@ import com.fasterxml.jackson.databind.node.*;
 import exp.entity.Node;
 import exp.entity.Value;
 import exp.entity.node.*;
-import exp.pasted.JsonBinaryType;
 import exp.pasted.ProxyJacksonArray;
 import exp.pasted.ProxyJacksonObject;
-import io.hyperfoil.tools.yaup.StringUtil;
 import io.hyperfoil.tools.yaup.hash.HashFactory;
-import io.hyperfoil.tools.yaup.json.Json;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
@@ -29,9 +26,7 @@ import org.graalvm.polyglot.Engine;
 import org.graalvm.polyglot.PolyglotException;
 import org.graalvm.polyglot.proxy.Proxy;
 import org.graalvm.polyglot.proxy.ProxyExecutable;
-import org.hibernate.JDBCException;
 import org.hibernate.Session;
-import org.hibernate.exception.GenericJDBCException;
 import org.hibernate.query.NativeQuery;
 
 import java.io.BufferedReader;
@@ -276,13 +271,11 @@ public class NodeService {
                     switch(dbKind) {
                         case "sqlite" ->
                                 """
-                                update value set data = json_extract( (select data from value where id = ?) , ? ) 
-                                where id = ?
+                                update value set data = ( select data from value where id = ?) -> ? where id = ?
                                 """;
                         case "postgresql" ->
                                 """
-                                update value set data = jsonb_path_query_first( (select data from value where id = ?) , ?::jsonpath )
-                                where id = ?
+                                update value set data = jsonb_path_query_first( (select data from value where id = ?) , ?::jsonpath ) where id = ?
                                 """;
                         default -> "";
                     }
@@ -294,22 +287,13 @@ public class NodeService {
             }catch (Exception e){
                 System.err.println(e.getMessage());
             }
-            try(PreparedStatement statement = conn.prepareStatement("""
-            select data from value where data is not null and id = ?
-            """)){
-                statement.setLong(1,newValue.id);
-                ResultSet rs = statement.executeQuery();
-                if(rs.next()){
-                    JsonBinaryType jsonBinaryType = new JsonBinaryType();
-                    JsonNode data = jsonBinaryType.nullSafeGet(rs,1,null,null);
-                    newValue.data = data;
-                    newValue.hashCode();//lazy
-                    rtrn.add(newValue);
-                }else{
-                    newValue.delete();
-                }
-                rs.close();
-            }
+
+            Value.<Value>find("data is not null and id = ?1", newValue.id)
+                 .project(Value.DataProjection.class)
+                 .firstResultOptional()
+                 .ifPresent(projection -> newValue.data = projection.data());
+
+            rtrn.add(newValue);
         });
         return rtrn;
     }

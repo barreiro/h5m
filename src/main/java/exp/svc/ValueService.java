@@ -4,12 +4,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import exp.entity.Node;
 import exp.entity.Value;
 import exp.entity.node.RootNode;
-import exp.pasted.JsonBinaryType;
 import exp.queue.KahnDagSort;
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.Parameter;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.core.Context;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
@@ -279,40 +279,33 @@ public class ValueService {
     @Transactional
     //TODO here thar be dragons
     public List<JsonNode> getGroupedValues(Node groupBy){
-        List<JsonNode> rtrn = new ArrayList<>();
-        NativeQuery query = (NativeQuery) em.createNativeQuery(
-                switch(dbKind) {
-                    case "sqlite" ->
-                        """
-                        with recursive tree(id,node_id,root_id,idx,data) as (
-                            select v.id,v.node_id,ve.parent_id as root_id,v.idx,v.data from value_edge ve left join value v on ve.child_id = v.id where ve.parent_id in (select id from value where node_id = :nodeId)
-                            union
-                            select v.id,v.node_id,t.root_id,v.idx,v.data from value v join value_edge ve on v.id = ve.child_id join tree t on ve.parent_id = t.id
-                        ), bynode as (
-                            select node_id,root_id,json_group_array(json(data)) as data from tree group by node_id,root_id order by idx
-                        )
-                        select json_group_object(n.name,json( ( case when json_array_length(b.data) > 1 then b.data else b.data->0 end))) as data from bynode b join node n on b.node_id = n.id group by root_id; 
-                        """;
-                    case "postgresql" ->
-                        """
-                        with recursive tree(id,node_id,root_id,idx,data) as (
-                            select v.id,v.node_id,ve.parent_id as root_id,v.idx,v.data from value_edge ve left join value v on ve.child_id = v.id where ve.parent_id in (select id from value where node_id = :nodeId)
-                            union
-                            select v.id,v.node_id,t.root_id,v.idx,v.data from value v join value_edge ve on v.id = ve.child_id join tree t on ve.parent_id = t.id
-                        ), bynode as (
-                            select node_id,root_id,jsonb_agg(to_jsonb(data)) as data from tree group by node_id,root_id,idx order by idx
-                        )
-                        select jsonb_object_agg(n.name,to_jsonb( ( case when jsonb_array_length(b.data) > 1 then b.data else b.data->0 end))) as data from bynode b join node n on b.node_id = n.id group by root_id;                        
-                        """;
-                default ->"";
-                }
-        ).setParameter("nodeId",groupBy.id);
-        List<JsonNode> found = query
-                .unwrap(NativeQuery.class)
-                .addScalar("data", JsonBinaryType.INSTANCE)
-                .list();
-        rtrn.addAll(found);
-        return rtrn;
+        return em.unwrap(Session.class).createNativeQuery(
+            switch(dbKind) {
+                case "sqlite" ->
+                    """
+                    with recursive tree(id,node_id,root_id,idx,data) as (
+                        select v.id,v.node_id,ve.parent_id as root_id,v.idx,v.data from value_edge ve left join value v on ve.child_id = v.id where ve.parent_id in (select id from value where node_id = :nodeId)
+                        union
+                        select v.id,v.node_id,t.root_id,v.idx,v.data from value v join value_edge ve on v.id = ve.child_id join tree t on ve.parent_id = t.id
+                    ), bynode as (
+                        select node_id,root_id,json_group_array(json(data)) as data from tree group by node_id,root_id order by idx
+                    )
+                    select json_group_object(n.name,json( ( case when json_array_length(b.data) > 1 then b.data else b.data->0 end))) as data from bynode b join node n on b.node_id = n.id group by root_id; 
+                    """;
+                case "postgresql" ->
+                    """
+                    with recursive tree(id,node_id,root_id,idx,data) as (
+                        select v.id,v.node_id,ve.parent_id as root_id,v.idx,v.data from value_edge ve left join value v on ve.child_id = v.id where ve.parent_id in (select id from value where node_id = :nodeId)
+                        union
+                        select v.id,v.node_id,t.root_id,v.idx,v.data from value v join value_edge ve on v.id = ve.child_id join tree t on ve.parent_id = t.id
+                    ), bynode as (
+                        select node_id,root_id,jsonb_agg(to_jsonb(data)) as data from tree group by node_id,root_id,idx order by idx
+                    )
+                    select jsonb_object_agg(n.name,to_jsonb( ( case when jsonb_array_length(b.data) > 1 then b.data else b.data->0 end))) as data from bynode b join node n on b.node_id = n.id group by root_id;                        
+                    """;
+                default -> "";
+            }, JsonNode.class
+        ).setParameter("nodeId",groupBy.id).getResultList();
     }
     /**
      * get all value that have a value from node as an ancestor
