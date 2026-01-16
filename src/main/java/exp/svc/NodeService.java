@@ -213,6 +213,7 @@ public class NodeService {
             case "jq":
             case "nata":
             case "sql":
+            case "sqlall":
                 for(int vIdx=0; vIdx<roots.size(); vIdx++){
                     Value root =  roots.get(vIdx);
                     try {
@@ -240,6 +241,7 @@ public class NodeService {
             case "ecma" -> calculateJsValues((JsNode)node,sourceValues,startingOrdinal+1);
             case "nata" -> calculateJsonataValues((JsonataNode)node,sourceValues,startingOrdinal+1);
             case "sql" -> calculateSqlJsonpathValues((SqlJsonpathNode)node,sourceValues,startingOrdinal+1);
+            case "sqlall" -> calculateSqlAllJsonpathValues((SqlJsonpathAllNode)node, sourceValues, startingOrdinal+1);
             default -> {
                 System.err.println("Unknown node type: "+node.type);
                 yield Collections.emptyList();
@@ -251,11 +253,10 @@ public class NodeService {
         return calculateSqlJsonpathValuesFirstOrAll(node,sourceValues,startingOrdinal,"jsonb_path_query_first");
     }
     @Transactional
-    public List<Value> calculateSqlAllJsonpathValues(SqlJsonpathNode node, Map<String,Value> sourceValues, int startingOrdinal) throws IOException {
+    public List<Value> calculateSqlAllJsonpathValues(SqlJsonpathAllNode node, Map<String,Value> sourceValues, int startingOrdinal) throws IOException {
         return calculateSqlJsonpathValuesFirstOrAll(node,sourceValues,startingOrdinal,"jsonb_path_query_array");
     }
-    @Transactional
-    private List<Value> calculateSqlJsonpathValuesFirstOrAll(SqlJsonpathNode node, Map<String,Value> sourceValues, int startingOrdinal,String psqlFunction) throws IOException {
+    private List<Value> calculateSqlJsonpathValuesFirstOrAll(Node node, Map<String,Value> sourceValues, int startingOrdinal,String psqlFunction) throws IOException {
         List<Value> rtrn = new ArrayList<>();
         if(sourceValues.isEmpty()){//end early when there isn't input
             return rtrn;
