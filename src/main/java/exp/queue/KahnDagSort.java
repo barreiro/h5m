@@ -39,7 +39,7 @@ public class KahnDagSort {
                 q.offer(t);
             }
         });
-        List<T> rtrn = new CopyOnWriteArrayList<>();
+        List<T> rtrn = new ArrayList<>();
         while(!q.isEmpty()){
             T t = q.poll();
             rtrn.add(t);
@@ -64,7 +64,7 @@ public class KahnDagSort {
             });
         }
         Collections.reverse(rtrn);
-        return rtrn;
+        return new CopyOnWriteArrayList<>(rtrn);
     }
 
     public static <T> boolean isCircular(T item,Function<T,List<T>> getDependencies){
