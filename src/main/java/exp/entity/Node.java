@@ -30,6 +30,8 @@ public abstract class Node extends PanacheEntity implements Comparable<Node> {
     @JsonIgnore
     public String type; //maybe we want access to the type?
     public String name;
+
+    @Column(columnDefinition = "TEXT")
     public String operation;
     public MultiIterationType multiType = MultiIterationType.Length;
     public ScalarVariableMethod scalarMethod = ScalarVariableMethod.First;
