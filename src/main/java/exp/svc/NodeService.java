@@ -768,6 +768,16 @@ public class NodeService {
                 String groupName = split[0];
                 String nodeName = split[1];
                 rtrn.addAll(Node.find("from Node n where n.group.name=?1 and n.name=?2",groupName,nodeName).list());
+                rtrn.addAll(em.createNativeQuery(
+                    """
+                    select c.* 
+                    from node c join node_edge ne on c.id = ne.child_id join node p on p.id = ne.parent_id 
+                    where c.name=:nodeName and p.name=:parentName
+                    """
+                    ,Node.class)
+                    .setParameter("nodeName",nodeName)
+                    .setParameter("parentName",groupName).getResultList()
+                );
             }else if (split.length==3){
                 String groupName = split[0];
                 String originalGroupName = split[1];

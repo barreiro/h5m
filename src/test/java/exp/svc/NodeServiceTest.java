@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
+import static exp.entity.Node.FQDN_SEPARATOR;
 import static org.junit.jupiter.api.Assertions.*;
 
 @QuarkusTest
@@ -315,6 +316,32 @@ public class NodeServiceTest extends FreshDb {
 
         List<Node> found = nodeService.findNodeByFqdn(node.getFqdn());
         assertEquals( 1,found.size());
+    }
+    @Test
+    public void findNodeByFqdn_parent_and_child_name() throws HeuristicRollbackException, SystemException, HeuristicMixedException, RollbackException, NotSupportedException {
+        tm.begin();
+        NodeGroup group = new NodeGroup("group1");
+        group.persist();
+        Node parent = new JqNode("parent");
+        parent.group = group;
+        parent.persist();
+
+        Node decoy = new JqNode("child",".decoy");
+        decoy.group = group;
+        decoy.persist();
+
+        Node child = new JqNode("child",".correct");
+        child.group = group;
+        child.sources=List.of(parent);
+        child.persist();
+
+        tm.commit();
+
+        List<Node> found = nodeService.findNodeByFqdn(parent.name+FQDN_SEPARATOR+child.name);
+        assertEquals( 1,found.size());
+        Node foundNode = found.get(0);
+        assertNotNull(foundNode);
+        assertEquals(".correct",foundNode.operation);
     }
     @Test
     public void findNodeByFqdn_group_orginal_group_name() throws HeuristicRollbackException, SystemException, HeuristicMixedException, RollbackException, NotSupportedException {
