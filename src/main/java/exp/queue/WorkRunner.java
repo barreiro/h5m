@@ -3,6 +3,8 @@ package exp.queue;
 import exp.entity.Node;
 import exp.entity.Value;
 import exp.entity.Work;
+import exp.entity.node.JsNode;
+import exp.entity.node.SqlJsonpathNode;
 import exp.svc.*;
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.enterprise.context.control.ActivateRequestContext;
@@ -80,6 +82,7 @@ public class WorkRunner implements Runnable {
             //looping over values works for Jq / Js nodes but what about cross test comparison
             //calculateValue should probably accept all sourceValues and leave it to the node function to decide
             List<Value> calculated = nodeService.calculateValues(work.activeNode,work.sourceValues);
+
             //if the activeNode is a sqlpath then the entity is already persisted
             boolean allPersisted = calculated.stream().allMatch(v->v.getId()!=null);
             List<Value> newOrUpdated = new ArrayList<>();
@@ -90,7 +93,10 @@ public class WorkRunner implements Runnable {
                     String path = newValue.getPath();
                     if(descendants.containsKey(path)){
                         Value existingValue = descendants.get(path);
-                        if(newValue.data.equals(existingValue.data)){
+                        //existingValue.getId() should not be null because it was fetched from persistence
+                        if(existingValue.getId().equals(newValue.getId())) {
+                            //if it's the same value we don't have to work with it
+                        }else if( newValue.data.equals(existingValue.data)){
                             if(newValue.id != null){
                                 valueService.delete(newValue);
                             }
@@ -124,11 +130,8 @@ public class WorkRunner implements Runnable {
                         //workService.create(newWork);
                         workQueue.addWork(newWork);
                     });
-
                 }
-
             }
-
             //not in the finally so that it only happens if the work succeeds
             //TODO this is throwing TransactionRequiredException
             workService.delete(work);

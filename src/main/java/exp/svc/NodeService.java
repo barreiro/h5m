@@ -107,15 +107,14 @@ public class NodeService {
     public List<Map<String,Value>> calculateSourceValuePermutations(Node node, Value root) {
         List<Map<String,Value>> rtrn = new ArrayList<>();
         Map<String,List<Value>> nodeValues = node.sources.stream()
-                .map(n -> {
-                    List<Value> found = valueService.getDescendantValues(root,n);
-                    if(found.isEmpty() && n.sources.isEmpty()){
+                .collect(Collectors.toMap(n->n.name, n -> {
+                    List<Value> found = valueService.getDescendantValues(root, n);
+                    if (found.isEmpty() && n.sources.isEmpty()) {
                         found = List.of(root);
                     }
                     return found;
-                })
-                //use root if there isn't anything found? How do we better decide when to use root? when there aren't sources?
-                .collect(Collectors.toMap((List<Value>list)-> !list.isEmpty() ? list.getFirst().node.name : "", list->list));
+                }
+                ));
 
         int maxNodeValuesLength = nodeValues.values().stream().map(Collection::size).max(Integer::compareTo).orElse(0);
 
@@ -124,7 +123,9 @@ public class NodeService {
             //to ensure sequence
             for(int i=0; i< maxNodeValuesLength; i++) {
                 int idx = i;
-                Map<String,Value> sourceValuesAtIndex = node.sources.stream().collect(Collectors.toMap(n->n.name,n->nodeValues.get(n.name).get(idx)));
+                Map<String,Value> sourceValuesAtIndex = node.sources.stream()
+                        .filter(n->nodeValues.get(n.name).size()>idx)
+                        .collect(Collectors.toMap(n->n.name,n->nodeValues.get(n.name).get(idx)));
                 //TODO splitting?
                 rtrn.add(sourceValuesAtIndex);
             }
@@ -409,11 +410,9 @@ public class NodeService {
             try{
                 org.graalvm.polyglot.Value value = context.eval("js", jsCode);
                 List<org.graalvm.polyglot.Value> resolvedValues = resolvePromiseOrGenerator(value);
-
                 for(org.graalvm.polyglot.Value resolvedValue : resolvedValues) {
                     try{
                         result = convert(resolvedValue);
-
                         JsonNode data = null;
                         if(result==null){
                             //data stays null
@@ -437,13 +436,15 @@ public class NodeService {
                             newValue.data = data;
                             newValue.sources = node.sources.stream().filter(n->sourceValues.containsKey(n.name)).map(n -> sourceValues.get(n.name)).collect(Collectors.toList());
                             rtrn.add(newValue);
+                        }else{
+                            System.err.println("null data from value "+resolvedValue);
                         }
                     }catch (PolyglotException pe){
-                        System.err.println("exception jsNode "+node.name+"\n"+pe.getMessage());
+                        System.err.println("exception jsNode "+node.name+" sourceValues="+sourceValues+"\n"+pe.getMessage());
                     }
                 }
             }catch(PolyglotException e){
-                System.err.println("exception jsNode "+node.name+"\n"+e.getMessage());
+                System.err.println("exception jsNode "+node.name+" sourceValues="+sourceValues+"\n"+e.getMessage());
             } finally {
                 context.leave();
             }

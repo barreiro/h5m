@@ -103,7 +103,26 @@ public class H5mTest {
         LaunchResult result = results.getLast();
         assertFalse(result.getOutput().contains(testName),"expect to not find foo folder: "+result.getOutput());
     }
+    @Test
+    public void add_js_uses_other_nodes(QuarkusMainLauncher launcher) {
+        String testName = StackWalker.getInstance()
+                .walk(s -> s.skip(0).findFirst())
+                .get()
+                .getMethodName();
+        List<LaunchResult> results = run(launcher,
+                new String[]{"add","folder",testName},
+                new String[]{"add","jq","to",testName,"foo",".buz"},
+                new String[]{"add","jq","to",testName,"bar",".bar"},
+                new String[]{"add","jq","to",testName,"biz",".biz"},
+                new String[]{"add","js","to",testName,"dataset","function* dataset({foo, bar, biz}){\nyield foo;\nyield bar;\nyield biz;\n}"},
+                new String[]{"list",testName,"nodes"},
+                new String[]{"list","nodes","from",testName}
+        );
+        results.forEach(result->{
+            assertEquals(0,result.exitCode(),result.getOutput());
+        });
 
+    }
     @Test
     @TestTransaction
     public void add_jq_list_node(QuarkusMainLauncher launcher) {
