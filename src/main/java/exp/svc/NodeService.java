@@ -13,6 +13,7 @@ import com.fasterxml.jackson.databind.node.*;
 import exp.entity.Folder;
 import exp.entity.Node;
 import exp.entity.Value;
+import exp.entity.Value.DataProjection;
 import exp.entity.node.*;
 import exp.pasted.ProxyJacksonArray;
 import exp.pasted.ProxyJacksonObject;
@@ -433,9 +434,7 @@ public class NodeService {
             System.err.println("sql jsonpath only supports one input at a time");
             return Collections.emptyList();
         }
-
         Value input = sourceValues.get(node.sources.getFirst().name);
-
         Value tempV = new Value(null,node,null);
         tempV.sources=List.of(input);
         tempV.idx=startingOrdinal;
@@ -463,21 +462,32 @@ public class NodeService {
                 System.err.println(e.getMessage());
             }
 
-            Value.<Value>find("data is not null and id = ?1", newValue.id)
-                 .project(Value.DataProjection.class)
-                 .firstResultOptional()
-
-                 .ifPresentOrElse(projection -> newValue.data = projection.data(),()->{
-                     System.err.println("no data found for newValue.id="+newValue.id+" node="+newValue.node.id+" "+newValue.node.name);
-                 });
-            rtrn.add(newValue);
+            JsonNode found = (JsonNode) em.createNativeQuery(
+                    switch(dbKind){
+                        case "sqlite" -> "select data from value where data is not null and data != 'null' and id = ?";
+                        case "postgresql" -> "select data from value where data is not null and data != 'null'::jsonb and id = ?";
+                        default -> "";
+                    }
+                , JsonNode.class)
+                .setParameter(1,newValue.id)
+                .getSingleResultOrNull();
+            if( found == null ){
+                valueService.delete(newValue);
+            } else {
+                //empty result mascarading as an empty array
+                if(dbKind.equals("postgresql") && psqlFunction.equals("jsonb_path_query_array") && found.isArray() && found.size()==0){
+                    valueService.delete(newValue);
+                } else {
+                    newValue.data = found;
+                    rtrn.add(newValue);
+                }
+            }
         });
         return rtrn;
     }
     @Transactional
     public List<Value> calculateSplitValues(SplitNode node, Map<String,Value> sourceValues, int startingOrdinal) throws IOException {
         List<Value> rtrn = new ArrayList<>();
-
         if(sourceValues.isEmpty()){
             return rtrn;
         }
@@ -877,12 +887,14 @@ public class NodeService {
                 jp.nextToken();
                 while (jp.hasCurrentToken()) {
                     JsonNode jsNode = jp.readValueAsTree();
-                    Value newValue = new Value();
-                    newValue.idx = order++;
-                    newValue.node = node;
-                    newValue.data = jsNode;
-                    newValue.sources = node.sources.stream().filter(n->sourceValues.containsKey(n.name)).map(n -> sourceValues.get(n.name)).collect(Collectors.toList());
-                    rtrn.add(newValue);
+                    if(!jsNode.isNull()){
+                        Value newValue = new Value();
+                        newValue.idx = order++;
+                        newValue.node = node;
+                        newValue.data = jsNode;
+                        newValue.sources = node.sources.stream().filter(n -> sourceValues.containsKey(n.name)).map(n -> sourceValues.get(n.name)).collect(Collectors.toList());
+                        rtrn.add(newValue);
+                    }
                     jp.nextToken();
                 }
             } catch (IOException e) {

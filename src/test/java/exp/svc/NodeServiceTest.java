@@ -165,6 +165,36 @@ public class NodeServiceTest extends FreshDb {
         assertEquals(1,calculated.size());
 
     }
+    @Test
+    public void calculateSqlJsonpathValues_null() throws IOException, SystemException, NotSupportedException, HeuristicRollbackException, HeuristicMixedException, RollbackException {
+        ObjectMapper mapper = new ObjectMapper();
+        tm.begin();
+        RootNode rootNode = new RootNode();
+        rootNode.persist();
+        SqlJsonpathNode node = new SqlJsonpathNode("sql","$.miss",List.of(rootNode));//should be a different type of node?
+        node.persist();
+        Value v1 = new Value();
+        v1.data = mapper.readTree("""
+                {
+                  "foo": [ { "key": "one"}, { "key" : "two" } ],
+                  "bar": [ { "k": "uno" }, { "k": "dos"}, { "k" : "tres"} ],
+                  "biz": "cat",
+                  "buz": "dog"
+                }
+                """);
+        v1.node=rootNode;
+        v1.persist();
+
+        tm.commit();
+
+        Map<String,Value> sourceValueMap = new HashMap<>();
+        sourceValueMap.put(rootNode.name,v1);
+
+        List<Value> calculated = nodeService.calculateSqlJsonpathValues(node,sourceValueMap,0);
+        assertNotNull(calculated);
+        assertEquals(0,calculated.size());
+
+    }
 
     @Test
     public void calculateRelativeDifference_root() throws SystemException, NotSupportedException, HeuristicRollbackException, HeuristicMixedException, RollbackException, IOException {
