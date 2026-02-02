@@ -206,6 +206,8 @@ public class H5mTest {
             assertEquals(0,result.exitCode(),result.getOutput());
         });
 
+        LaunchResult last = results.getLast();
+        assertTrue(last.getOutput().contains("Count: 13"),"expect 13 values from test");
 
 
     }
@@ -265,8 +267,8 @@ public class H5mTest {
             assertEquals(0,result.exitCode(),result.getOutput());
         });
 
-
-
+        LaunchResult last = results.getLast();
+        assertTrue(last.getOutput().contains("Count: 38"),"expect 38 values from test");
     }
 
     @Test
@@ -286,7 +288,7 @@ public class H5mTest {
             assertEquals(0,result.exitCode(),result.getOutput());
         });
         LaunchResult result = results.getLast();
-        assertFalse(result.getOutput().contains("biz"),"expect to find biz: "+result.getOutput());
+        assertFalse(result.getOutput().contains("biz"),"expect to NOT find biz: "+result.getOutput());
     }
 
     @Test
@@ -495,6 +497,9 @@ public class H5mTest {
         results.forEach(result->{
             assertEquals(0,result.exitCode(),result.getOutput());
         });
+
+        LaunchResult last = results.getLast();
+        assertTrue(last.getOutput().contains("Count: 2"),"expect to find 2 results by foo");
     }
     @Test
     public void upload_jq_multi_input(QuarkusMainLauncher launcher) throws IOException {
