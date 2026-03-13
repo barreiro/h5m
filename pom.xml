@@ -253,6 +253,16 @@
                                     <expandEmptyElements>false</expandEmptyElements>
                                 </sortPom>
                             </pom>
+                            <java>
+                                <eclipse>
+                                    <file>${project.basedir}/eclipse-code-formatter.xml</file>
+                                </eclipse>
+                                <importOrder>
+                                    <file>${project.basedir}/.importorder</file>
+                                </importOrder>
+                                <removeUnusedImports/>
+                                <forbidWildcardImports/>
+                            </java>
                         </configuration>
                     </execution>
                 </executions>

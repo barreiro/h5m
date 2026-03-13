@@ -1,0 +1,13 @@
+{
+    "editor.codeActionsOnSave": {
+        "source.organizeImports": "explicit"
+    },
+    "java.format.settings.url": "eclipse-code-formatter.xml",
+    "java.completion.importOrder": [
+        "java",
+        "javax",
+        "jakarta",
+        "org",
+        "com"
+    ]
+}
