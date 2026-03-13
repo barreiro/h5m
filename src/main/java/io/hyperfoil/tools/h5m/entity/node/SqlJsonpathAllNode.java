@@ -8,7 +8,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 
-import static io.hyperfoil.tools.h5m.entity.node.JqNode.*;
+import static io.hyperfoil.tools.h5m.entity.node.JqNode.SOURCE_PREFIX;
+import static io.hyperfoil.tools.h5m.entity.node.JqNode.SOURCE_SEPARATOR;
+import static io.hyperfoil.tools.h5m.entity.node.JqNode.SOURCE_SUFFIX;
 
 @Entity
 @DiscriminatorValue("sqlall")

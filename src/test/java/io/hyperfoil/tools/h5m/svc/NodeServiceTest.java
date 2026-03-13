@@ -10,20 +10,39 @@ import io.hyperfoil.tools.h5m.FreshDb;
 import io.hyperfoil.tools.h5m.entity.NodeEntity;
 import io.hyperfoil.tools.h5m.entity.NodeGroupEntity;
 import io.hyperfoil.tools.h5m.entity.ValueEntity;
-import io.hyperfoil.tools.h5m.entity.node.*;
+import io.hyperfoil.tools.h5m.entity.node.FingerprintNode;
+import io.hyperfoil.tools.h5m.entity.node.FixedThreshold;
+import io.hyperfoil.tools.h5m.entity.node.JqNode;
+import io.hyperfoil.tools.h5m.entity.node.JsNode;
+import io.hyperfoil.tools.h5m.entity.node.RelativeDifference;
+import io.hyperfoil.tools.h5m.entity.node.RootNode;
+import io.hyperfoil.tools.h5m.entity.node.SqlJsonpathNode;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
-import jakarta.transaction.*;
+import jakarta.transaction.HeuristicMixedException;
+import jakarta.transaction.HeuristicRollbackException;
+import jakarta.transaction.NotSupportedException;
+import jakarta.transaction.RollbackException;
+import jakarta.transaction.SystemException;
+import jakarta.transaction.TransactionManager;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import static io.hyperfoil.tools.h5m.entity.NodeEntity.FQDN_SEPARATOR;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @QuarkusTest
 public class NodeServiceTest extends FreshDb {

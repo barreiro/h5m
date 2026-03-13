@@ -3,10 +3,18 @@ package io.hyperfoil.tools.h5m.entity;
 import io.hyperfoil.tools.h5m.entity.node.RootNode;
 import io.hyperfoil.tools.h5m.entity.validation.ValidNode;
 import io.quarkus.hibernate.orm.panache.PanacheEntity;
-import jakarta.persistence.*;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.OneToOne;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.validation.constraints.NotNull;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Entity(name = "node_group")

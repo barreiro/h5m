@@ -6,10 +6,21 @@ import io.hyperfoil.tools.h5m.entity.node.RelativeDifference;
 import io.hyperfoil.tools.h5m.svc.WorkService;
 import io.quarkus.hibernate.orm.panache.PanacheEntity;
 import jakarta.enterprise.inject.spi.CDI;
-import jakarta.persistence.*;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.DiscriminatorColumn;
+import jakarta.persistence.DiscriminatorValue;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
+import jakarta.persistence.ManyToOne;
 import org.hibernate.annotations.BatchSize;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 

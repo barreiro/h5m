@@ -7,10 +7,26 @@ import com.api.jsonata4java.expressions.ParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.*;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.BooleanNode;
+import com.fasterxml.jackson.databind.node.DoubleNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.LongNode;
+import com.fasterxml.jackson.databind.node.NullNode;
+import com.fasterxml.jackson.databind.node.NumericNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.TextNode;
 import io.hyperfoil.tools.h5m.entity.NodeEntity;
 import io.hyperfoil.tools.h5m.entity.ValueEntity;
-import io.hyperfoil.tools.h5m.entity.node.*;
+import io.hyperfoil.tools.h5m.entity.node.FingerprintNode;
+import io.hyperfoil.tools.h5m.entity.node.FixedThreshold;
+import io.hyperfoil.tools.h5m.entity.node.JqNode;
+import io.hyperfoil.tools.h5m.entity.node.JsNode;
+import io.hyperfoil.tools.h5m.entity.node.JsonataNode;
+import io.hyperfoil.tools.h5m.entity.node.RelativeDifference;
+import io.hyperfoil.tools.h5m.entity.node.SplitNode;
+import io.hyperfoil.tools.h5m.entity.node.SqlJsonpathAllNode;
+import io.hyperfoil.tools.h5m.entity.node.SqlJsonpathNode;
 import io.hyperfoil.tools.h5m.pasted.ProxyJacksonArray;
 import io.hyperfoil.tools.h5m.pasted.ProxyJacksonObject;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -39,7 +55,15 @@ import net.thisptr.jackson.jq.path.Path;
 
 import java.io.IOException;
 import java.sql.PreparedStatement;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.DoubleBinaryOperator;
 import java.util.regex.Matcher;
@@ -1117,8 +1141,8 @@ public class NodeService {
                 rtrn.addAll(NodeEntity.find("from node n where n.group.name=?1 and n.name=?2",groupName,nodeName).list());
                 rtrn.addAll(em.createNativeQuery(
                     """
-                    select c.* 
-                    from node c join node_edge ne on c.id = ne.child_id join node p on p.id = ne.parent_id 
+                    select c.*
+                    from node c join node_edge ne on c.id = ne.child_id join node p on p.id = ne.parent_id
                     where c.name=:nodeName and p.name=:parentName
                     """
                     , NodeEntity.class)
