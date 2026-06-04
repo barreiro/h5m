@@ -17,6 +17,22 @@ public interface ValueServiceInterface {
     void purgeValues();
 
     /**
+     * Retrieves a value by its ID.
+     *
+     * @param id The value ID.
+     * @return The value with the given ID.
+     */
+    Value getValueById(Long id);
+
+    /**
+     * Retrieves just the data payload for a value.
+     *
+     * @param id The value ID.
+     * @return The JSON data payload.
+     */
+    JqValue getValueData(Long id);
+
+    /**
      * Retrieves the descendant values of a specific node.
      *
      * @param nodeId The ID of the node.
@@ -62,5 +78,15 @@ public interface ValueServiceInterface {
     List<JqValue> getGroupedValues(Long nodeId, List<Long> filterNodeIds, Map<Long,JqValue> fingerprints, Long sortByNodeId);
     List<JqValue> getGroupedValues(Long nodeId, Long valueId, List<Long> filterNodeIds, Map<Long,JqValue> fingerprints, Long sortByNodeId);
 
+
+    /**
+     * Retrieves paginated values for a specific node.
+     *
+     * @param nodeId The node ID.
+     * @param page Zero-based page index.
+     * @param size Page size.
+     * @return A list of values.
+     */
+    List<Value> getNodeValues(long nodeId, int page, int size);
 
 }

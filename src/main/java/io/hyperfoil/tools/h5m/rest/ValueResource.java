@@ -24,8 +24,13 @@ public class ValueResource {
     @Inject
     ValueServiceInterface valueService;
 
-    @Inject
-    ValueService valueServiceImpl;
+    @GET
+    @Path("{id}")
+    @PermitAll
+    @Operation(description = "Get a value by its ID")
+    public Value getValueById(@PathParam("id") Long id) {
+        return valueService.getValueById(id);
+    }
 
     @DELETE
     @RolesAllowed("admin")
@@ -35,11 +40,11 @@ public class ValueResource {
     }
 
     @GET
-    @Path("{id}")
+    @Path("{id}/data")
     @PermitAll
     @Operation(description = "Get a value's data by its ID")
     public JqValue getValueData(@PathParam("id") Long id) {
-        JqValue data = valueServiceImpl.getValueData(id);
+        JqValue data = valueService.getValueData(id);
         if (data == null) {
             throw new NotFoundException("Value not found: " + id);
         }
@@ -65,8 +70,11 @@ public class ValueResource {
     @GET
     @Path("node/{nodeId}")
     @PermitAll
-    @Operation(description = "Get all values produced by a specific node")
-    public List<Value> getNodeValues(@PathParam("nodeId") Long nodeId) {
-        return valueService.getNodeValues(nodeId);
+    @Operation(description = "Get paginated values for a specific node")
+    public List<Value> getNodeValues(
+            @PathParam("nodeId") long nodeId,
+            @QueryParam("page") @DefaultValue("0") int page,
+            @QueryParam("size") @DefaultValue("20") int size) {
+        return valueService.getNodeValues(nodeId, page, size);
     }
 }

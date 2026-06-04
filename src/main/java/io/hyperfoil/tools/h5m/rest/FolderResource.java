@@ -1,5 +1,6 @@
 package io.hyperfoil.tools.h5m.rest;
 
+import io.hyperfoil.tools.h5m.api.FolderStatus;
 import io.hyperfoil.tools.jjq.value.JqValue;
 import io.hyperfoil.tools.h5m.api.Folder;
 import io.hyperfoil.tools.h5m.api.FolderSummary;
@@ -19,7 +20,6 @@ import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import java.util.List;
-import java.util.Map;
 
 @Path("/api/folder")
 @Produces(MediaType.APPLICATION_JSON)
@@ -60,11 +60,11 @@ public class FolderResource {
     }
 
     @GET
-    @Path("count")
+    @Path("summary")
     @PermitAll
-    @Operation(description = "Get the upload count for all folders")
-    public Map<String, Integer> getFolderUploadCount() {
-        return folderService.getFolderUploadCount();
+    @Operation(description = "Get summary statistics for the given folders")
+    public List<FolderStatus> getFolderStatus(@QueryParam("id") List<Long> ids) {
+        return folderService.getFolderStatus(ids);
     }
 
     @POST

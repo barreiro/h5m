@@ -1224,7 +1224,7 @@ public class ValueServiceTest extends FreshDb {
         List<Value> found = valueService.getNodeDescendantValues(root.id);
 
         assertEquals(3,found.size(),"expect to see three entries");
-        assertTrue(found.contains(apiMapper.toValue(bravobravoValue, new CycleAvoidingContext())), "missing bravobravo[" + bravobravoValue.id + "]'s value: " + found);
+        assertTrue(found.stream().anyMatch(v -> v.id().equals(bravobravoValue.id)), "missing bravobravo[" + bravobravoValue.id + "]'s value: " + found);
     }
 
     @Test

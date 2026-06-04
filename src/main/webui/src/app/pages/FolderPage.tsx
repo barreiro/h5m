@@ -1,15 +1,17 @@
-import type { Node as ApiNode } from '@client/types.gen.ts';
+import type { Node as ApiNode, Value } from '@client/types.gen.ts';
 
 import { DataTab } from '@app/components/DataTab';
 import { NodeGraphVisualizer } from '@app/components/NodeGraphVisualizer';
 import { useState } from 'react';
 import {
   Button,
+  DataTable,
   ErrorBoundary,
   InlineLoading,
   InlineNotification,
   MenuButton,
   MenuItem,
+  Pagination,
   SkeletonText,
   StructuredListBody,
   StructuredListCell,
@@ -20,13 +22,20 @@ import {
   TabList,
   TabPanel,
   TabPanels,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
   Tabs,
   Tag,
 } from '@carbon/react';
 import { byIdOptions, getRecalculationStatusOptions, listFoldersOptions } from '@client/@tanstack/react-query.gen.ts';
-import { useQuery, useSuspenseQuery } from '@tanstack/react-query';
+import { queryOptions, useQuery, useSuspenseQuery } from '@tanstack/react-query';
+import axios from 'axios';
 import { Suspense, useCallback, useEffect } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import '@app/pages/DashboardPage.css';
 import { CreateNodeModal } from '@app/components/CreateNodeModal';
 import { DeleteNodeModal } from '@app/components/DeleteNodeModal';
@@ -148,7 +157,143 @@ const GraphVisualizer = ({ groupId }: { groupId: number }) => {
   );
 };
 
-const TAB_ANCHORS = ['data', 'nodes', 'graph'];
+interface FolderStatus {
+  id: number;
+  name: string;
+  uploadCount: number;
+  nodeCount: number;
+  changeCount: number;
+  lastUpload: string | null;
+  lastChange: string | null;
+}
+
+const folderStatusOptions = (folderId: number) =>
+  queryOptions<FolderStatus | null>({
+    queryKey: ['folderStatus', folderId],
+    queryFn: async () => {
+      const { data } = await axios.get<FolderStatus[]>('/api/folder/summary', { params: { id: folderId } });
+      return data[0] ?? null;
+    },
+  });
+
+const StatusTab = ({ folderId }: { folderId: number }) => {
+  const { data: status } = useSuspenseQuery(folderStatusOptions(folderId));
+  if (!status) {
+    return <p>No status available</p>;
+  }
+  return (
+    <StructuredListWrapper>
+      <StructuredListBody>
+        <StructuredListRow>
+          <StructuredListCell>Uploads</StructuredListCell>
+          <StructuredListCell>{status.uploadCount}</StructuredListCell>
+        </StructuredListRow>
+        <StructuredListRow>
+          <StructuredListCell>Nodes</StructuredListCell>
+          <StructuredListCell>{status.nodeCount}</StructuredListCell>
+        </StructuredListRow>
+        <StructuredListRow>
+          <StructuredListCell>Changes</StructuredListCell>
+          <StructuredListCell>{status.changeCount}</StructuredListCell>
+        </StructuredListRow>
+        <StructuredListRow>
+          <StructuredListCell>Last upload</StructuredListCell>
+          <StructuredListCell>{status.lastUpload ?? '—'}</StructuredListCell>
+        </StructuredListRow>
+        <StructuredListRow>
+          <StructuredListCell>Last change</StructuredListCell>
+          <StructuredListCell>{status.lastChange ?? '—'}</StructuredListCell>
+        </StructuredListRow>
+      </StructuredListBody>
+    </StructuredListWrapper>
+  );
+};
+
+const nodeValuesOptions = (nodeId: number, page: number, size: number) =>
+  queryOptions<Value[]>({
+    queryKey: ['nodeValues', nodeId, page, size],
+    queryFn: async () => {
+      const { data } = await axios.get<Value[]>(`/api/value/node/${String(nodeId)}`, { params: { page, size } });
+      return data;
+    },
+  });
+
+const UPLOAD_HEADERS = [
+  { key: 'id', header: 'ID' },
+  { key: 'node', header: 'Node' },
+  { key: 'folder', header: 'Folder' },
+  { key: 'createdAt', header: 'Created' },
+];
+
+const UploadsTab = ({ folderId, nodeId }: { folderId: number; nodeId: number }) => {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const { data: values = [] } = useQuery(nodeValuesOptions(nodeId, page - 1, pageSize));
+  const { data: status } = useQuery(folderStatusOptions(folderId));
+  const totalItems = status?.uploadCount ?? 0;
+
+  const rows = values.map((v) => ({
+    id: String(v.id),
+    node: v.node?.name ?? '—',
+    folder: v.folder?.name ?? '—',
+    createdAt: (v as { createdAt?: string }).createdAt ?? '—',
+  }));
+  return (
+    <>
+      <DataTable rows={rows} headers={UPLOAD_HEADERS}>
+        {({ rows, headers, getTableProps, getHeaderProps, getRowProps }) => (
+          <Table {...getTableProps()}>
+            <TableHead>
+              <TableRow>
+                {headers.map((header) => (
+                  <TableHeader {...getHeaderProps({ header })} key={header.key}>
+                    {header.header}
+                  </TableHeader>
+                ))}
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {rows.map((row) => (
+                <TableRow {...getRowProps({ row })} key={row.id}>
+                  {row.cells.map((cell) => (
+                    <TableCell key={cell.id}>
+                      {cell.info.header === 'id' ? (
+                        <Link to={`/folder/${String(folderId)}/value/${cell.value as string}`}>{cell.value}</Link>
+                      ) : (
+                        cell.value ?? '—'
+                      )}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </DataTable>
+      <Pagination
+        totalItems={totalItems}
+        page={page}
+        pageSize={pageSize}
+        pageSizes={[10, 20, 50]}
+        onChange={({ page: p, pageSize: s }: { page: number; pageSize: number }) => {
+          setPage(p);
+          setPageSize(s);
+        }}
+      />
+    </>
+  );
+};
+
+const UploadsTabLoader = ({ folderId, groupId }: { folderId: number; groupId: number }) => {
+  const { data: nodeGroup } = useSuspenseQuery(byIdOptions({ path: { id: groupId } }));
+  const rootId = nodeGroup.root?.id;
+  if (rootId == null) {
+    return <p>No root node found</p>;
+  }
+  return <UploadsTab folderId={folderId} nodeId={rootId} />;
+};
+
+const TAB_ANCHORS = ['data', 'status', 'nodes', 'graph', 'uploads'];
 
 const FolderContent = ({ folderId }: { folderId: number }) => {
   const { data: folders } = useSuspenseQuery(listFoldersOptions());
@@ -166,8 +311,10 @@ const FolderContent = ({ folderId }: { folderId: number }) => {
     <Tabs selectedIndex={selectedIndex} onChange={onTabChange}>
       <TabList aria-label="Folder tabs">
         <Tab>Data</Tab>
+        <Tab>Status</Tab>
         <Tab>Nodes</Tab>
         <Tab>Graph</Tab>
+        <Tab>Uploads</Tab>
       </TabList>
       <TabPanels>
         <TabPanel>
@@ -176,6 +323,13 @@ const FolderContent = ({ folderId }: { folderId: number }) => {
           ) : (
             <p>Folder name not available</p>
           )}
+        </TabPanel>
+        <TabPanel>
+          <ErrorBoundary fallback={<InlineLoading status="error" description="Failed to load status" />}>
+            <Suspense fallback={<SkeletonText paragraph={true} lineCount={5} />}>
+              <StatusTab folderId={folderId} />
+            </Suspense>
+          </ErrorBoundary>
         </TabPanel>
         <TabPanel>
           {folder.groupId != null ? (
@@ -193,6 +347,17 @@ const FolderContent = ({ folderId }: { folderId: number }) => {
             <ErrorBoundary fallback={<InlineLoading status="error" description="Failed to load nodes" />}>
               <Suspense fallback={<SkeletonText paragraph={true} lineCount={5} />}>
                 <GraphVisualizer groupId={folder.groupId} />
+              </Suspense>
+            </ErrorBoundary>
+          ) : (
+            <p>No node group associated with this folder</p>
+          )}
+        </TabPanel>
+        <TabPanel>
+          {folder.groupId != null ? (
+            <ErrorBoundary fallback={<InlineLoading status="error" description="Failed to load uploads" />}>
+              <Suspense fallback={<SkeletonText paragraph={true} lineCount={5} />}>
+                <UploadsTabLoader folderId={folderId} groupId={folder.groupId} />
               </Suspense>
             </ErrorBoundary>
           ) : (

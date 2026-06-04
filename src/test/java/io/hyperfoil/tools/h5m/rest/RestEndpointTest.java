@@ -146,7 +146,7 @@ public class RestEndpointTest extends FreshDb {
     @Test
     public void folder_get_upload_count_empty() {
         given()
-                .when().get("/api/folder/count")
+                .when().get("/api/folder/summary")
                 .then()
                 .statusCode(200)
                 .body("size()", equalTo(0));
@@ -156,11 +156,18 @@ public class RestEndpointTest extends FreshDb {
     public void folder_get_upload_count_with_folder() {
         createFolder("count-test");
 
-        given()
-                .when().get("/api/folder/count")
+        Long folderId = given()
+                .when().get("/api/folder/count-test")
                 .then()
                 .statusCode(200)
-                .body("'count-test'", equalTo(0));
+                .extract().jsonPath().getLong("id");
+
+        given()
+                .queryParam("id", folderId)
+                .when().get("/api/folder/summary")
+                .then()
+                .statusCode(200)
+                .body("[0].uploadCount", equalTo(0));
     }
 
     @Test
@@ -527,7 +534,7 @@ public class RestEndpointTest extends FreshDb {
 
         // Verify the endpoint returns the uploaded JSON data
         given()
-                .when().get("/api/value/" + valueId)
+                .when().get("/api/value/" + valueId + "/data")
                 .then()
                 .statusCode(200)
                 // rhivos runs have metadata with user and uuid fields
@@ -537,7 +544,7 @@ public class RestEndpointTest extends FreshDb {
     @Test
     public void value_data_returns_404_for_nonexistent_value() {
         given()
-                .when().get("/api/value/999999")
+                .when().get("/api/value/999999/data")
                 .then()
                 .statusCode(404);
     }

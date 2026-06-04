@@ -46,6 +46,12 @@ public class ValueService implements ValueServiceInterface {
 
     @Override
     @Transactional
+    public Value getValueById(Long id) {
+        return ValueEntity.<ValueEntity>findByIdOptional(id).map(entity -> apiMapper.toValue(entity, new CycleAvoidingContext())).orElse(null);
+    }
+
+    @Override
+    @Transactional
     public void purgeValues(){
         em.createNativeQuery("delete from Value").executeUpdate();
 
@@ -918,6 +924,24 @@ public class ValueService implements ValueServiceInterface {
             """)
             .setParameter("nodeId", nodeId)
             .executeUpdate();
+        }
+
+    @Override
+    @Transactional
+    @SuppressWarnings("unchecked")
+    public List<Value> getNodeValues(long nodeId, int page, int size) {
+        CycleAvoidingContext cycleContext = new CycleAvoidingContext();
+        List<ValueEntity> found = em.createNativeQuery("""
+            select v.* from value v
+            where v.node_id = :nodeId
+            order by v.created_at desc
+            limit :limit offset :offset
+            """, ValueEntity.class)
+                .setParameter("nodeId", nodeId)
+                .setParameter("limit", size)
+                .setParameter("offset", page * size)
+                .getResultList();
+        return found.stream().map(e -> apiMapper.toValue(e, cycleContext)).toList();
     }
 
 }

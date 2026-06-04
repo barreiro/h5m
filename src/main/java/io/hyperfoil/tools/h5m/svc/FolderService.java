@@ -9,6 +9,7 @@ import io.hyperfoil.tools.jjq.value.JqString;
 import io.hyperfoil.tools.jjq.value.JqValue;
 import io.hyperfoil.tools.jjq.value.JqValues;
 import io.hyperfoil.tools.h5m.api.Folder;
+import io.hyperfoil.tools.h5m.api.FolderStatus;
 import io.hyperfoil.tools.h5m.api.FolderSummary;
 
 import io.hyperfoil.tools.h5m.api.svc.FolderServiceInterface;
@@ -178,25 +179,38 @@ public class FolderService implements FolderServiceInterface {
 
     @Override
     @Transactional
-    public Map<String,Integer> getFolderUploadCount(){
-        Map<String,Integer> rtrn = new HashMap<>();
-
+    public List<FolderStatus> getFolderStatus(List<Long> ids) {
         NativeQuery query = (NativeQuery) em.createNativeQuery(
             """
-            select f.name as name, count(v.id) as count
-            from folder f join node_group g on f.group_id = g.id join node r on r.id = g.root_id left join value v on v.node_id = r.id 
-            group by f.name 
+            select f.id as id, f.name as name,
+                   count(v.id) as upload_count,
+                   (select count(*) from node n where n.group_id = g.id) as node_count,
+                   (select count(*) from value cv join node cn on cv.node_id = cn.id where cn.group_id = g.id and cn.type in ('ft', 'rd')) as change_count,
+                   max(v.created_at) as last_upload,
+                   (select max(cv.created_at) from value cv join node cn on cv.node_id = cn.id where cn.group_id = g.id and cn.type in ('ft', 'rd')) as last_change
+            from folder f
+            join node_group g on f.group_id = g.id
+            join node r on r.id = g.root_id
+            left join value v on v.node_id = r.id
+            where f.id in (:ids)
+            group by f.id, f.name, g.id
             """
         );
         List<Object[]> found = query
                 .unwrap(NativeQuery.class)
+                .setParameter("ids", ids)
+                .addScalar("id", Long.class)
                 .addScalar("name", String.class)
-                .addScalar("count", Integer.class)
+                .addScalar("upload_count", Integer.class)
+                .addScalar("node_count", Integer.class)
+                .addScalar("change_count", Integer.class)
+                .addScalar("last_upload", LocalDateTime.class)
+                .addScalar("last_change", LocalDateTime.class)
                 .getResultList();
-        for( Object[] obj : found ){
-            rtrn.put((String) obj[0], (Integer) obj[1]);
-        }
-        return rtrn;
+        return found.stream().map(obj -> new FolderStatus(
+                (Long) obj[0], (String) obj[1], (Integer) obj[2], (Integer) obj[3], (Integer) obj[4],
+                (LocalDateTime) obj[5], (LocalDateTime) obj[6]
+        )).toList();
     }
 
     @Transactional

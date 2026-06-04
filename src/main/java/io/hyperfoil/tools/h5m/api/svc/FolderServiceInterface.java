@@ -2,6 +2,7 @@ package io.hyperfoil.tools.h5m.api.svc;
 
 import io.hyperfoil.tools.jjq.value.JqValue;
 import io.hyperfoil.tools.h5m.api.Folder;
+import io.hyperfoil.tools.h5m.api.FolderStatus;
 import io.hyperfoil.tools.h5m.api.FolderSummary;
 import io.hyperfoil.tools.h5m.api.Upload;
 import io.hyperfoil.tools.h5m.svc.RecalculationTracker;
@@ -9,7 +10,6 @@ import io.hyperfoil.tools.h5m.svc.RecalculationTracker;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Service interface for managing Folders.
@@ -32,11 +32,12 @@ public interface FolderServiceInterface {
     Folder byName(String name);
 
     /**
-     * Gets the upload count for all folders.
+     * Gets summary statistics for the given folders.
      *
-     * @return A map of folder names to their upload counts.
+     * @param ids The folder IDs to query.
+     * @return A list of folder statuses.
      */
-    Map<String, Integer> getFolderUploadCount();
+    List<FolderStatus> getFolderStatus(List<Long> ids);
 
     /**
      * Creates a new folder with the given name.

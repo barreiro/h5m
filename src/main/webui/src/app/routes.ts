@@ -1,6 +1,7 @@
 import { AppHeader } from '@app/layout/AppHeader';
 import { DashboardPage } from '@app/pages/DashboardPage';
 import { FolderPage } from '@app/pages/FolderPage';
+import { ValuePage } from '@app/pages/ValuePage';
 import { createBrowserRouter } from 'react-router-dom';
 
 const router = createBrowserRouter([
@@ -15,6 +16,10 @@ const router = createBrowserRouter([
       {
         Component: FolderPage,
         path: 'folder/:folderId',
+      },
+      {
+        Component: ValuePage,
+        path: 'folder/:folderId/value/:valueId',
       },
     ],
   },
