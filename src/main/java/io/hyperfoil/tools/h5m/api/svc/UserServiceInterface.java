@@ -11,11 +11,13 @@ public interface UserServiceInterface {
 
     long create(String sub, String iss, String username, Role role);
 
+    User resolveUser();
+
     User byUsername(String username);
 
-    User bySub(String sub, String iss);
-
     List<User> list();
+
+    boolean isMemberOf(long teamId);
 
     void setRole(long userId, Role role);
 

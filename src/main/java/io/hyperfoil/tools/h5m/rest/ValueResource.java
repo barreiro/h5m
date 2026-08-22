@@ -3,7 +3,6 @@ package io.hyperfoil.tools.h5m.rest;
 import io.hyperfoil.tools.jjq.value.JqValue;
 import io.hyperfoil.tools.h5m.api.Value;
 import io.hyperfoil.tools.h5m.api.svc.ValueServiceInterface;
-import io.hyperfoil.tools.h5m.entity.ValueEntity;
 import io.hyperfoil.tools.h5m.svc.ValueService;
 import jakarta.annotation.security.PermitAll;
 import jakarta.annotation.security.RolesAllowed;
@@ -14,6 +13,8 @@ import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import java.util.List;
+
+import static io.hyperfoil.tools.h5m.api.Role.ADMIN_ROLE;
 
 @Path("/value")
 @Produces(MediaType.APPLICATION_JSON)
@@ -27,7 +28,7 @@ public class ValueResource {
     ValueService valueServiceImpl;
 
     @DELETE
-    @RolesAllowed("admin")
+    @RolesAllowed(ADMIN_ROLE)
     @Operation(description = "Purge all values")
     public void purgeValues() {
         valueService.purgeValues();

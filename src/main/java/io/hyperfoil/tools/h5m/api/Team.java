@@ -1,5 +1,6 @@
 package io.hyperfoil.tools.h5m.api;
 
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Pattern;
 
 /**
@@ -7,5 +8,5 @@ import jakarta.validation.constraints.Pattern;
  */
 public record Team(long id,
         // Input hint only: the backend may still send reserved 'h5m.' names.
-        @Pattern(regexp = ReservedNamespace.ALLOWED_NAME_PATTERN, message = "names starting with 'h5m.' are reserved for internal use") String name,
+        @Pattern(regexp = ReservedNamespace.ALLOWED_NAME_PATTERN, message = "names starting with 'h5m.' are reserved for internal use") @NotEmpty String name,
         int memberCount) {}

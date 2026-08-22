@@ -1,10 +1,16 @@
 import { AppHeader } from '@app/layout/AppHeader';
 import { DashboardPage } from '@app/pages/DashboardPage';
 import { FolderPage } from '@app/pages/FolderPage';
-import { createElement } from 'react';
+import { SitePage } from '@app/pages/SitePage';
+import { TeamManagementPage } from '@app/pages/TeamManagementPage';
+import { TeamsPage } from '@app/pages/TeamsPage';
 import { createBrowserRouter } from 'react-router-dom';
 
 const router = createBrowserRouter([
+  {
+    Component: SitePage,
+    path: '/help/*',
+  },
   {
     Component: AppHeader,
     path: '/',
@@ -14,17 +20,16 @@ const router = createBrowserRouter([
         index: true,
       },
       {
-        Component: () =>
-          createElement('iframe', {
-            src: '/site/docs/',
-            title: 'Documentation',
-            style: { display: 'block', border: 'none', width: '100%', height: 'calc(100vh - 3rem)' },
-          }),
-        path: 'help',
-      },
-      {
         Component: FolderPage,
         path: 'folder/:folderId',
+      },
+      {
+        Component: TeamManagementPage,
+        path: 'team/:teamId',
+      },
+      {
+        Component: TeamsPage,
+        path: 'teams',
       },
     ],
   },

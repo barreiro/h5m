@@ -1,4 +1,5 @@
 import { AuthActions } from '@app/layout/AuthActions.tsx';
+import { DOCS_IFRAME_STYLE, docsIframeSrc } from '@app/pages/SitePage';
 import { Help } from '@carbon/icons-react';
 import {
   Content,
@@ -18,8 +19,8 @@ import {
 } from '@carbon/react';
 import { listFoldersOptions } from '@client/@tanstack/react-query.gen.ts';
 import { useSuspenseQuery } from '@tanstack/react-query';
-import { Suspense, useCallback, useState } from 'react';
-import { Link, Outlet, useNavigate, useParams } from 'react-router-dom';
+import { ReactNode, Suspense, useCallback, useState } from 'react';
+import { Link, Outlet, useParams } from 'react-router-dom';
 
 const NavFolders = () => {
   const { data: folders } = useSuspenseQuery(listFoldersOptions());
@@ -35,11 +36,14 @@ const NavFolders = () => {
   );
 };
 
-export const AppHeader = () => {
-  const navigate = useNavigate();
+export const AppHeader = ({ children }: { children?: ReactNode }) => {
   const [sideNavOpen, setSideNavOpen] = useState(false);
+  const [docsOpen, setDocsOpen] = useState(false);
   const toggleSideNav = useCallback(() => {
     setSideNavOpen((prev) => !prev);
+  }, []);
+  const toggleDocs = useCallback(() => {
+    setDocsOpen((prev) => !prev);
   }, []);
   return (
     <>
@@ -51,7 +55,7 @@ export const AppHeader = () => {
             Horreum
           </HeaderName>
           <HeaderGlobalBar>
-            <HeaderGlobalAction aria-label="Documentation" onClick={() => void navigate('/help')} tooltipAlignment="end">
+            <HeaderGlobalAction aria-label="Documentation" onClick={toggleDocs} isActive={docsOpen} tooltipAlignment="end">
               <Help size={24} />
             </HeaderGlobalAction>
             <AuthActions />
@@ -77,9 +81,24 @@ export const AppHeader = () => {
           </ErrorBoundary>
         </SideNav>
       </Theme>
-      <Content style={{ padding: 0 }}>
-        <Outlet />
-      </Content>
+      {children ?? (
+        <>
+          <Content>
+            <Outlet />
+          </Content>
+          <iframe
+            src={docsIframeSrc()}
+            title="Documentation"
+            style={{
+              ...DOCS_IFRAME_STYLE,
+              display: docsOpen ? 'block' : 'none',
+              position: 'fixed',
+              top: '3rem',
+              zIndex: 8000,
+            }}
+          />
+        </>
+      )}
     </>
   );
 };

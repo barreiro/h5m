@@ -1,5 +1,6 @@
 package io.hyperfoil.tools.h5m.cli;
 
+import io.hyperfoil.tools.h5m.api.Team;
 import io.hyperfoil.tools.h5m.api.svc.TeamServiceInterface;
 import jakarta.inject.Inject;
 
@@ -19,8 +20,8 @@ public class AdminCreateTeam implements Command<H5mCommandInvocation> {
 
     @Override
     public CommandResult execute(H5mCommandInvocation invocation) throws InterruptedException {
-        long id = teamService.create(name);
-        invocation.println("Created team: " + name + " (id=" + id + ")");
+        Team team = teamService.create(name);
+        invocation.println("Created team: " + name + " (id=" + team.id() + ")");
         return CommandResult.SUCCESS;
     }
 }

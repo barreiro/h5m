@@ -13,6 +13,9 @@ import io.quarkus.security.runtime.QuarkusSecurityIdentity;
 import io.smallrye.mutiny.Uni;
 import org.eclipse.microprofile.jwt.JsonWebToken;
 
+import static io.hyperfoil.tools.h5m.api.Role.ADMIN_ROLE;
+import static io.hyperfoil.tools.h5m.api.Role.USER_ROLE;
+
 @ApplicationScoped
 public class H5mRolesAugmentor implements SecurityIdentityAugmentor {
 
@@ -36,9 +39,9 @@ public class H5mRolesAugmentor implements SecurityIdentityAugmentor {
             return identity;
         }
         QuarkusSecurityIdentity.Builder builder = QuarkusSecurityIdentity.builder(identity);
-        builder.addRole("user");
+        builder.addRole(USER_ROLE);
         if (user.role() == Role.ADMIN) {
-            builder.addRole("admin");
+            builder.addRole(ADMIN_ROLE);
         }
         return builder.build();
     }

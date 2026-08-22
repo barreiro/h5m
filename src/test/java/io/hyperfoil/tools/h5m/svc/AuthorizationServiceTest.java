@@ -54,7 +54,7 @@ public class AuthorizationServiceTest extends FreshDb {
     @Test
     @Transactional
     void canModifyFolder_returns_true_for_team_member() {
-        long teamId = teamService.create("dev");
+        long teamId = teamService.create("dev").id();
         long userId = userService.create("alice", Role.USER);
         teamService.addMember(teamId, userId);
 
@@ -69,7 +69,7 @@ public class AuthorizationServiceTest extends FreshDb {
     @Test
     @Transactional
     void canModifyFolder_returns_false_for_non_member() {
-        long teamId = teamService.create("dev");
+        long teamId = teamService.create("dev").id();
         userService.create("outsider", Role.USER);
 
         FolderEntity folder = new FolderEntity();
@@ -83,7 +83,7 @@ public class AuthorizationServiceTest extends FreshDb {
     @Test
     @Transactional
     void canModifyFolder_returns_true_for_admin() {
-        long teamId = teamService.create("dev");
+        long teamId = teamService.create("dev").id();
         userService.create("boss", Role.ADMIN);
 
         FolderEntity folder = new FolderEntity();
@@ -109,7 +109,7 @@ public class AuthorizationServiceTest extends FreshDb {
     @Test
     @Transactional
     void requireFolderModify_throws_for_non_member() {
-        long teamId = teamService.create("dev");
+        long teamId = teamService.create("dev").id();
         userService.create("outsider", Role.USER);
 
         FolderEntity folder = new FolderEntity();

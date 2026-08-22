@@ -24,7 +24,7 @@ public class TeamServiceTest extends FreshDb {
 
     @Test
     void create_team() {
-        long id = teamService.create("test-team");
+        long id = teamService.create("test-team").id();
         assertTrue(id > 0);
         Team team = teamService.find("test-team");
         assertNotNull(team);
@@ -41,7 +41,7 @@ public class TeamServiceTest extends FreshDb {
 
     @Test
     void delete_team() {
-        long id = teamService.create("to-delete");
+        long id = teamService.create("to-delete").id();
         assertNotNull(teamService.find("to-delete"));
         teamService.delete(id);
         assertNull(teamService.find("to-delete"));
@@ -50,20 +50,20 @@ public class TeamServiceTest extends FreshDb {
     @Test
     @Transactional
     void add_member() {
-        long teamId = teamService.create("dev-team");
+        long teamId = teamService.create("dev-team").id();
         long userId = userService.create("alice", Role.USER);
         teamService.addMember(teamId, userId);
 
         TeamEntity teamEntity = TeamEntity.findById(teamId);
         assertNotNull(teamEntity);
         assertEquals(1, teamEntity.members.size());
-        assertEquals("alice", teamEntity.members.get(0).username);
+        assertEquals("alice", teamEntity.members.iterator().next().username);
     }
 
     @Test
     @Transactional
     void remove_member() {
-        long teamId = teamService.create("dev-team");
+        long teamId = teamService.create("dev-team").id();
         long userId = userService.create("bob", Role.USER);
         teamService.addMember(teamId, userId);
 
@@ -78,7 +78,7 @@ public class TeamServiceTest extends FreshDb {
     @Test
     @Transactional
     void add_member_is_idempotent() {
-        long teamId = teamService.create("dev-team");
+        long teamId = teamService.create("dev-team").id();
         long userId = userService.create("carol", Role.USER);
         teamService.addMember(teamId, userId);
         teamService.addMember(teamId, userId);

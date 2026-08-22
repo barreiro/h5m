@@ -17,6 +17,8 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import java.util.List;
 
+import static io.hyperfoil.tools.h5m.api.Role.ADMIN_ROLE;
+
 @Path("/apikey")
 @Produces(MediaType.APPLICATION_JSON)
 @Tag(name = "API Key", description = "Manage API keys for authentication")
@@ -61,7 +63,7 @@ public class ApiKeyResource {
             throw new NotFoundException("API key not found: " + keyId);
         }
         String username = identity.getPrincipal().getName();
-        if (!key.owner().equals(username) && !identity.hasRole("admin")) {
+        if (!key.owner().equals(username) && !identity.hasRole(ADMIN_ROLE)) {
             throw new ForbiddenException("Cannot revoke another user's API key");
         }
         apiKeyService.revoke(keyId);

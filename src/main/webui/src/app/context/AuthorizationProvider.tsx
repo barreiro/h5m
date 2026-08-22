@@ -1,5 +1,5 @@
 import { AuthorizationContext } from '@app/context/AuthorizationContext.tsx';
-import { roleOptions } from '@client/@tanstack/react-query.gen.ts';
+import { currentUserOptions, userTeamsOptions } from '@client/@tanstack/react-query.gen.ts';
 import { client } from '@client/client.gen.ts';
 import { useQuery } from '@tanstack/react-query';
 import { ReactNode, useEffect } from 'react';
@@ -15,8 +15,14 @@ export const AuthorizationProvider = ({ children }: { children: ReactNode }) => 
     client.setConfig({ auth: isAuthenticated ? token : undefined });
   }, [token, isAuthenticated]);
 
-  const { data: role } = useQuery({
-    ...roleOptions(),
+  const { data: currentUser } = useQuery({
+    ...currentUserOptions(),
+    enabled: isAuthenticated,
+    staleTime: 60 * 1000,
+  });
+
+  const { data: teams } = useQuery({
+    ...userTeamsOptions(),
     enabled: isAuthenticated,
     staleTime: 60 * 1000,
   });
@@ -24,8 +30,10 @@ export const AuthorizationProvider = ({ children }: { children: ReactNode }) => 
   return (
     <AuthorizationContext.Provider
       value={{
-        isAdmin: isAuthenticated && role === 'ADMIN',
+        isAdmin: isAuthenticated && currentUser?.role === 'ADMIN',
         isAuthenticated,
+        teams: teams ?? [],
+        userId: currentUser?.id ?? 0,
       }}
     >
       {children}

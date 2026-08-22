@@ -10,8 +10,8 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity(name = "team")
 public class TeamEntity extends PanacheEntityBase {
@@ -29,7 +29,7 @@ public class TeamEntity extends PanacheEntityBase {
             joinColumns = @JoinColumn(name = "team_id"),
             inverseJoinColumns = @JoinColumn(name = "user_id")
     )
-    public List<UserEntity> members = new ArrayList<>();
+    public Set<UserEntity> members = new HashSet<>();
 
     public TeamEntity() {}
 
@@ -39,15 +39,20 @@ public class TeamEntity extends PanacheEntityBase {
 
     @Override
     public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
         if (!(o instanceof TeamEntity that)) {
             return false;
         }
-        return name.equals(that.name);
+        return id != null && id.equals(that.id);
     }
 
     @Override
     public int hashCode() {
-        return name.hashCode();
+        // Deliberately constant: hashCode must stay stable across the entity lifecycle while this instance sits in a HashSet.
+        // Basing it on id (null until persisted) or name (mutable) would change the hash and turn the entity into an unreachable "ghost" in its collection.
+        return getClass().hashCode();
     }
 
     @Override

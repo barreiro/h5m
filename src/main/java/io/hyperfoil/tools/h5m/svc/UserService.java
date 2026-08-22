@@ -5,9 +5,11 @@ import io.hyperfoil.tools.h5m.api.User;
 import io.hyperfoil.tools.h5m.api.svc.UserServiceInterface;
 import io.hyperfoil.tools.h5m.entity.UserEntity;
 import io.hyperfoil.tools.h5m.entity.mapper.ApiMapper;
+import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import org.eclipse.microprofile.jwt.JsonWebToken;
 
 import java.util.List;
 
@@ -16,6 +18,23 @@ public class UserService implements UserServiceInterface {
 
     @Inject
     ApiMapper apiMapper;
+
+    @Inject
+    SecurityIdentity identity;
+
+    @Override
+    @Transactional
+    public User resolveUser() {
+        return apiMapper.toUser(resolveUserEntity());
+    }
+
+    @SuppressWarnings("SwitchStatementWithTooFewBranches")
+    private UserEntity resolveUserEntity() {
+        return switch (identity.getPrincipal()) {
+            case JsonWebToken jwt -> UserEntity.find("sub = ?1 and iss = ?2", jwt.getSubject(), jwt.getIssuer()).firstResult();
+            default -> UserEntity.find("username", identity.getPrincipal().getName()).firstResult();
+        };
+    }
 
     @Override
     @Transactional
@@ -40,7 +59,6 @@ public class UserService implements UserServiceInterface {
         return apiMapper.toUser(entity);
     }
 
-    @Override
     @Transactional
     public User bySub(String sub, String iss) {
         UserEntity entity = UserEntity.find("sub = ?1 and iss = ?2", sub, iss).firstResult();
@@ -52,6 +70,13 @@ public class UserService implements UserServiceInterface {
     public List<User> list() {
         List<UserEntity> entities = UserEntity.listAll();
         return entities.stream().map(apiMapper::toUser).toList();
+    }
+
+    @Override
+    @Transactional
+    public boolean isMemberOf(long teamId) {
+        UserEntity entity = resolveUserEntity();
+        return entity != null && entity.teams.stream().anyMatch(team -> team.id.equals(teamId));
     }
 
     @Override

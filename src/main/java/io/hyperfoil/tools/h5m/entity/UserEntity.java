@@ -13,8 +13,8 @@ import jakarta.persistence.ManyToMany;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity(name = "h5m_user")
 @Table(uniqueConstraints = @UniqueConstraint(columnNames = {"sub", "iss"}))
@@ -35,7 +35,7 @@ public class UserEntity extends PanacheEntityBase {
     public Role role;
 
     @ManyToMany(mappedBy = "members")
-    public List<TeamEntity> teams = new ArrayList<>();
+    public Set<TeamEntity> teams = new HashSet<>();
 
     public UserEntity() {}
 
@@ -53,15 +53,20 @@ public class UserEntity extends PanacheEntityBase {
 
     @Override
     public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
         if (!(o instanceof UserEntity that)) {
             return false;
         }
-        return username.equals(that.username);
+        return id != null && id.equals(that.id);
     }
 
     @Override
     public int hashCode() {
-        return username.hashCode();
+        // Deliberately constant: hashCode must stay stable across the entity lifecycle while this instance sits in a HashSet.
+        // Basing it on id (null until persisted) or username (mutable) would change the hash and turn the entity into an unreachable "ghost" in its collection.
+        return getClass().hashCode();
     }
 
     @Override

@@ -1,6 +1,8 @@
 import { setAppNavigator } from '@app/context/navigation.tsx';
 import { useNotification } from '@app/context/useNotification.tsx';
-import { Login, Logout, UserAvatar } from '@carbon/icons-react';
+import { useRoles } from '@app/context/useRoles.tsx';
+import { useTeams } from '@app/context/useTeams.tsx';
+import { GroupAccess, Login, Logout, UserAvatar } from '@carbon/icons-react';
 import { HeaderGlobalAction, HeaderPanel, SideNavDivider, SideNavItems, SideNavLink, SideNavMenuItem } from '@carbon/react';
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from 'react-oidc-context';
@@ -8,6 +10,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 
 export const AuthActions = () => {
   const auth = useAuth();
+  const { isAdmin } = useRoles();
+  const teams = useTeams();
   const location = useLocation();
   const navigate = useNavigate();
   const { warning, handleError } = useNotification();
@@ -78,10 +82,42 @@ export const AuthActions = () => {
       <HeaderPanel aria-label="User panel" expanded={panelOpen}>
         <SideNavItems>
           <SideNavMenuItem>{username}</SideNavMenuItem>
-          <SideNavDivider />
           <SideNavLink renderIcon={Logout} onClick={handleLogout}>
             Logout
           </SideNavLink>
+          {teams.length !== 0 && (
+            <>
+              <SideNavDivider />
+              <SideNavMenuItem>Team Management</SideNavMenuItem>
+              {teams.map((t) => (
+                <SideNavLink
+                  key={t.id}
+                  renderIcon={GroupAccess}
+                  onClick={() => {
+                    setPanelOpen(false);
+                    void navigate(`/team/${String(t.id)}`);
+                  }}
+                >
+                  {t.name}
+                </SideNavLink>
+              ))}
+            </>
+          )}
+          {isAdmin && (
+            <>
+              <SideNavDivider />
+              <SideNavMenuItem>Administration</SideNavMenuItem>
+              <SideNavLink
+                renderIcon={GroupAccess}
+                onClick={() => {
+                  setPanelOpen(false);
+                  void navigate('/teams');
+                }}
+              >
+                Teams
+              </SideNavLink>
+            </>
+          )}
         </SideNavItems>
       </HeaderPanel>
     </>

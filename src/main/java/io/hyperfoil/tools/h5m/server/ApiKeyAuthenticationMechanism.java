@@ -19,6 +19,9 @@ import io.smallrye.mutiny.Uni;
 import io.vertx.ext.web.RoutingContext;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
+import static io.hyperfoil.tools.h5m.api.Role.ADMIN_ROLE;
+import static io.hyperfoil.tools.h5m.api.Role.USER_ROLE;
+
 @ApplicationScoped
 public class ApiKeyAuthenticationMechanism implements HttpAuthenticationMechanism {
 
@@ -32,9 +35,9 @@ public class ApiKeyAuthenticationMechanism implements HttpAuthenticationMechanis
     public Uni<SecurityIdentity> authenticate(RoutingContext context, IdentityProviderManager identityProviderManager) {
         if (!securityEnabled) {
             SecurityIdentity localAdmin = QuarkusSecurityIdentity.builder()
-                    .setPrincipal(new QuarkusPrincipal("local"))
-                    .addRole("admin")
-                    .addRole("user")
+                    .setPrincipal(new QuarkusPrincipal("h5m.local"))
+                    .addRole(ADMIN_ROLE)
+                    .addRole(USER_ROLE)
                     .build();
             return Uni.createFrom().item(localAdmin);
         }
