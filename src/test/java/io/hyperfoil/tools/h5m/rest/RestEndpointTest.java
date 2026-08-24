@@ -1292,4 +1292,60 @@ public class RestEndpointTest extends FreshDb {
         fail("Upload " + uploadId + " did not complete within 30 seconds");
     }
 
+    // -- Validation tests for detection config constraints --
+
+    @Test
+    public void node_eDivisive_invalid_windowLen_below_minimum() {
+        createFolder("eDivisive-test");
+        Long groupId = getGroupId("eDivisive-test");
+        Long sourceId = createNode(groupId, "source", ".data");
+
+        String invalidConfig = JqObject.builder()
+                .put("windowLen", JqNumber.of(2))  // Fails @Min(3)
+                .put("maxPvalue", JqNumber.of(0.001))
+                .put("minMagnitude", JqNumber.of(0.0))
+                .put("maxSeriesLength", JqNumber.of(500))
+                .build().toJsonString();
+
+        given()
+                .contentType(MediaType.APPLICATION_JSON)
+                .queryParam("name", "eDivisive-invalid")
+                .queryParam("groupId", groupId)
+                .queryParam("type", "EDIVISIVE")
+                .queryParam("sources", sourceId)
+                .body(invalidConfig)
+                .when().post("/api/node/configured")
+                .then()
+                .statusCode(400);
+    }
+
+    @Test
+    public void node_relativeDifference_non_unique_sources() {
+        createFolder("relDiff-nonunique");
+        Long groupId = getGroupId("relDiff-nonunique");
+        Long source1 = createNode(groupId, "source1", ".data");
+        Long source2 = createNode(groupId, "source2", ".domain");
+
+        String validConfig = JqObject.builder()
+                .put("filter", JqString.of("MAX"))
+                .put("threshold", JqNumber.of(0.1))
+                .put("window", JqNumber.of(10))
+                .put("minPrevious", JqNumber.of(5))
+                .build().toJsonString();
+
+        // Try to create with duplicate source (source1 twice) - should fail @UniqueElements
+        given()
+                .contentType(MediaType.APPLICATION_JSON)
+                .queryParam("name", "relDiff-nonunique")
+                .queryParam("groupId", groupId)
+                .queryParam("type", "RELATIVE_DIFFERENCE")
+                .queryParam("sources", source1)
+                .queryParam("sources", source2)
+                .queryParam("sources", source1)  // Duplicate
+                .body(validConfig)
+                .when().post("/api/node/configured")
+                .then()
+                .statusCode(400);
+    }
+
 }
