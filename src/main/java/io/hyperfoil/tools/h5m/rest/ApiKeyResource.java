@@ -17,7 +17,7 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import java.util.List;
 
-@Path("/api/apikey")
+@Path("/apikey")
 @Produces(MediaType.APPLICATION_JSON)
 @Tag(name = "API Key", description = "Manage API keys for authentication")
 public class ApiKeyResource {

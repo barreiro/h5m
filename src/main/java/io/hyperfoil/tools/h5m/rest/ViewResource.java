@@ -15,7 +15,7 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import java.util.List;
 
-@Path("/api/folder/{folderId}/view")
+@Path("/folder/{folderId}/view")
 @Produces(MediaType.APPLICATION_JSON)
 @Tag(name = "View", description = "Manage views for folder data presentation")
 public class ViewResource {

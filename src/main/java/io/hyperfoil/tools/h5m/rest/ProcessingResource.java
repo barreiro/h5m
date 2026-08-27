@@ -9,7 +9,7 @@ import jakarta.ws.rs.core.MediaType;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
-@Path("/api/processing")
+@Path("/processing")
 @Produces(MediaType.APPLICATION_JSON)
 @Tag(name = "Processing", description = "Track processing status for uploads and recalculations")
 public class ProcessingResource {

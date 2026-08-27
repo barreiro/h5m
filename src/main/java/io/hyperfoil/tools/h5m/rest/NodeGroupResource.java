@@ -10,7 +10,7 @@ import jakarta.ws.rs.core.MediaType;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
-@Path("/api/group")
+@Path("/group")
 @Produces(MediaType.APPLICATION_JSON)
 @Tag(name = "NodeGroup", description = "Manage node groups (transformation pipelines)")
 public class NodeGroupResource {

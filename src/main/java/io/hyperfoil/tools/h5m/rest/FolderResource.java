@@ -36,7 +36,7 @@ import java.util.stream.Stream;
 import static jakarta.ws.rs.core.MediaType.MULTIPART_FORM_DATA;
 import static java.nio.file.Files.readAllBytes;
 
-@Path("/api/folder")
+@Path("/folder")
 @Produces(MediaType.APPLICATION_JSON)
 @Tag(name = "Folder", description = "Manage folders for uploaded data")
 public class FolderResource {

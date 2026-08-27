@@ -15,7 +15,7 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import java.util.List;
 
-@Path("/api/value")
+@Path("/value")
 @Produces(MediaType.APPLICATION_JSON)
 @Tag(name = "Value", description = "Manage computed values produced by nodes")
 public class ValueResource {

@@ -15,7 +15,7 @@ import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
-@Path("/api/user")
+@Path("/user")
 @Produces(MediaType.APPLICATION_JSON)
 @Tag(name = "User", description = "User and role information")
 public class UserResource {

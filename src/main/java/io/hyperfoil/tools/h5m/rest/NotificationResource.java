@@ -21,7 +21,7 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import java.util.List;
 
-@Path("/api/notification")
+@Path("/notification")
 @Produces(MediaType.APPLICATION_JSON)
 @Tag(name = "Notification", description = "Manage notification configurations for change detection")
 public class NotificationResource {

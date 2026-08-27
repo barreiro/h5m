@@ -34,7 +34,7 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 import java.util.List;
 import java.util.Objects;
 
-@Path("/api/node")
+@Path("/node")
 @Produces(MediaType.APPLICATION_JSON)
 @Tag(name = "Node", description = "Manage transformation nodes in the DAG pipeline")
 public class NodeResource {
