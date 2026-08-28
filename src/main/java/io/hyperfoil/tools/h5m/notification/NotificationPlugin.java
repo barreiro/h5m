@@ -1,6 +1,9 @@
 package io.hyperfoil.tools.h5m.notification;
 
-import io.hyperfoil.tools.h5m.event.ChangeNotification;
+import io.hyperfoil.tools.h5m.api.NotificationMethod;
+import io.hyperfoil.tools.h5m.api.notification.NotificationConfiguration;
+import io.hyperfoil.tools.h5m.api.notification.NotificationSecret;
+import io.hyperfoil.tools.h5m.event.ChangeEvent;
 
 /**
  * SPI for notification channels. Implementations are discovered via CDI
@@ -19,15 +22,10 @@ public interface NotificationPlugin {
     /**
      * Send a change notification via this channel.
      *
-     * @param notification the enriched notification payload
+     * @param event    the change detection event that triggered the notification
+     * @param config   the typed, plugin-specific configuration for this channel
+     * @param secret  the typed, plugin-specific secret for this channel (may be null)
+     * @param template optional custom message template with placeholders, or null for the default
      */
-    void send(ChangeNotification notification);
-
-    /**
-     * Validate plugin-specific configuration data before it is saved.
-     *
-     * @param configData the plugin-specific configuration (JSON string)
-     * @throws IllegalArgumentException if the configuration is invalid
-     */
-    void validate(String configData);
+    void send(ChangeEvent event, NotificationConfiguration config, NotificationSecret secret, String template);
 }
