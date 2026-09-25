@@ -5,7 +5,7 @@ import type { Node } from '@client/types.gen.ts';
 import { ChartTheme, ScaleTypes } from '@carbon/charts';
 import { ComboChart } from '@carbon/charts-react';
 import { blue50, purple60, red50 } from '@carbon/colors';
-import { Column, Dropdown, Grid, InlineLoading, InlineNotification, Stack, Tile } from '@carbon/react';
+import { Column, Dropdown, Grid, InlineLoading, InlineNotification, Stack } from '@carbon/react';
 import { byIdOptions, getLabelValuesOptions } from '@client/@tanstack/react-query.gen.ts';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
@@ -15,12 +15,9 @@ interface DetectionChartProps {
   groupId: number;
 }
 
-const DETECTION_TYPES = new Set([
-  'EDIVISIVE',
-  'FIXED_THRESHOLD',
-  'RELATIVE_DIFFERENCE',
-  'STDDEV_ANOMALY',
-]);
+const DETECTION_TYPES = new Set(['EDIVISIVE', 'FIXED_THRESHOLD', 'RELATIVE_DIFFERENCE', 'STDDEV_ANOMALY']);
+
+const CHANGE_POINT = 'Change Point';
 
 function parseOperation(operation?: string): Record<string, unknown> {
   if (!operation) return {};
@@ -33,21 +30,13 @@ function parseOperation(operation?: string): Record<string, unknown> {
 }
 
 export default function DetectionChart({ folderId, groupId }: DetectionChartProps) {
-  const { data: nodeGroup, isLoading: isGroupLoading } = useQuery(
-    byIdOptions({ path: { id: groupId } }),
-  );
+  const { data: nodeGroup, isLoading: isGroupLoading } = useQuery(byIdOptions({ path: { id: groupId } }));
 
-  const detectionNodes = useMemo(
-    () => (nodeGroup?.sources ?? []).filter((n) => DETECTION_TYPES.has(n.type)),
-    [nodeGroup],
-  );
+  const detectionNodes = useMemo(() => (nodeGroup?.sources ?? []).filter((n) => DETECTION_TYPES.has(n.type)), [nodeGroup]);
 
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
 
-  const activeNode =
-    (selectedNode && detectionNodes.some((n) => n.id === selectedNode.id)
-      ? selectedNode
-      : detectionNodes[0]) ?? null;
+  const activeNode = (selectedNode && detectionNodes.some((n) => n.id === selectedNode.id) ? selectedNode : detectionNodes[0]) ?? null;
 
   const rangeNode = activeNode?.sources?.[2];
   const domainNode = activeNode?.sources?.[3];
@@ -89,8 +78,7 @@ export default function DetectionChart({ folderId, groupId }: DetectionChartProp
       const metricVal = Number(rawMetric);
       if (Number.isNaN(metricVal)) return;
 
-      const keyVal =
-        domainName && row[domainName] != null ? Number(row[domainName]) : i;
+      const keyVal = domainName && row[domainName] != null ? Number(row[domainName]) : i;
       const key = Number.isNaN(keyVal) ? i : keyVal;
 
       metricSeries.push({
@@ -99,10 +87,9 @@ export default function DetectionChart({ folderId, groupId }: DetectionChartProp
         value: metricVal,
       });
 
-
       if (detectName && row[detectName] != null) {
         changePoints.push({
-          group: 'Change Point',
+          group: CHANGE_POINT,
           key,
           value: metricVal,
         });
@@ -111,6 +98,8 @@ export default function DetectionChart({ folderId, groupId }: DetectionChartProp
 
     return [...metricSeries, ...changePoints];
   }, [rows, rangeName, domainName, detectName, metricGroup]);
+
+  const hasChangePoints = chartData.some((d) => d.group === CHANGE_POINT);
 
   // Guidelines / Thresholds
   const thresholds: ThresholdOptions[] = useMemo(() => {
@@ -127,6 +116,40 @@ export default function DetectionChart({ folderId, groupId }: DetectionChartProp
     return result;
   }, [activeNode]);
 
+  const options = useMemo(
+    () => ({
+      title: activeNode?.name ?? 'Metric & Change Detection',
+      theme: ChartTheme.G90,
+      height: '400px',
+      axes: {
+        bottom: {
+          title: domainNode?.name ?? 'Index',
+          mapsTo: 'key',
+          scaleType: ScaleTypes.LINEAR,
+        },
+        left: {
+          title: metricGroup,
+          mapsTo: 'value',
+          scaleType: ScaleTypes.LINEAR,
+          thresholds,
+        },
+      },
+      curve: 'curveMonotoneX',
+      points: { radius: 4 },
+      color: {
+        scale: {
+          [metricGroup]: blue50,
+          ...(hasChangePoints && { [CHANGE_POINT]: red50 }),
+        },
+      },
+      comboChartTypes: [
+        { type: 'line', correspondingDatasets: [metricGroup] },
+        ...(hasChangePoints ? [{ type: 'scatter', correspondingDatasets: [CHANGE_POINT] }] : []),
+      ],
+    }),
+    [activeNode, domainNode, metricGroup, thresholds, hasChangePoints],
+  );
+
   if (isGroupLoading || isDataLoading) {
     return <InlineLoading description="Loading chart data..." />;
   }
@@ -141,38 +164,6 @@ export default function DetectionChart({ folderId, groupId }: DetectionChartProp
     );
   }
 
-  const options = {
-    title: activeNode?.name ?? 'Metric & Change Detection',
-    theme: ChartTheme.G90,
-    height: '400px',
-    axes: {
-      bottom: {
-        title: domainNode?.name ?? 'Index',
-        mapsTo: 'key',
-        scaleType: ScaleTypes.LINEAR,
-      },
-      left: {
-        title: metricGroup,
-        mapsTo: 'value',
-        scaleType: ScaleTypes.LINEAR,
-        thresholds,
-      },
-    },
-    curve: 'curveMonotoneX',
-    points: { radius: 4 },
-    color: {
-      scale: {
-        [metricGroup]: blue50,
-        'Change Point': red50,
-      },
-    },
-    comboChartTypes: [
-      { type: 'line', correspondingDatasets: [metricGroup] },
-      { type: 'scatter', correspondingDatasets: ['Change Point'] },
-    ],
-    
-  };
-
   return (
     <Stack gap={5}>
       <Grid narrow>
@@ -184,24 +175,18 @@ export default function DetectionChart({ folderId, groupId }: DetectionChartProp
             items={detectionNodes}
             itemToString={(n: Node | null) => n?.name ?? ''}
             selectedItem={activeNode}
-            onChange={({ selectedItem }) => { setSelectedNode(selectedItem); }}
+            onChange={({ selectedItem }) => {
+              setSelectedNode(selectedItem);
+            }}
           />
         </Column>
       </Grid>
 
-      <Column lg={10}>
-        <Tile>
-          {chartData.length > 0 ? (
-            <ComboChart key={activeNode?.id ?? 'empty'} data={chartData} options={options} />
-          ) : (
-            <InlineNotification
-              kind="info"
-              title="No Data Available"
-              subtitle="No data points were found for the selected detection node."
-            />
-          )}
-        </Tile>
-      </Column>
+      {chartData.length > 0 ? (
+        <ComboChart key={activeNode?.id ?? 'empty'} data={chartData} options={options} />
+      ) : (
+        <InlineNotification kind="info" title="No Data Available" subtitle="No data points were found for the selected detection node." />
+      )}
     </Stack>
   );
 }
